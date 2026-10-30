@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-当前版本：**0.1.0 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
+当前版本：**0.1.1 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
 
 ![Harbor Terminal 开源 SSH 客户端：服务器管理、中英文切换与终端工作空间](docs/images/harbor-terminal-zh.png)
 
@@ -166,7 +166,7 @@ Mosh 先用 SSH 认证，再使用 UDP。默认服务器端口为 **60042**，�
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [开发、架构与验证记录](docs/DEVELOPMENT_CN.md)
-- [首版发布说明](docs/releases/v0.1.0.md)
+- [v0.1.1 发布说明](docs/releases/v0.1.1.md)
 - [界面与后端共用翻译词典](shared/messages.json)
 
 <a id="project-structure"></a>
@@ -188,6 +188,25 @@ terminal/
 
 ## 🧪 测试与构建
 
+安装 Node.js、npm 和 GNU Make 后，直接执行 `make` 或 `make help` 查看全部命令与说明。Windows 可使用 GNU Make（例如 MSYS2 提供的 make）搭配 Windows 版 Node.js；生成 Windows 安装包请在 Windows 原生环境运行，不要在 WSL 的 Linux 环境中构建。
+
+```sh
+make                       # 列出命令及说明
+make install               # 按锁文件安装依赖
+make dev                   # 开发模式，支持热更新
+make start                 # 构建后启动客户端
+make build                 # 仅构建前端
+make test-all              # 顺序运行全部测试
+make pack                  # 按当前操作系统与架构打包
+make pack-mac ARCH=arm64    # macOS DMG + ZIP
+make pack-mac ARCH=x64      # Intel macOS DMG + ZIP
+make pack-win ARCH=x64      # Windows NSIS + 便携 EXE
+make pack-linux ARCH=x64    # Linux AppImage + deb
+make pack OUT=release/demo # 自定义产物目录
+```
+
+`ARCH` 默认 `native`，可选择 `arm64` 或 `x64`。请在目标操作系统运行对应打包命令；跨架构构建需要目标架构的原生依赖工具链，构建成功后仍需实机验证。打包命令不会自动发布到 GitHub。`make test`、`make test-desktop`、`make test-security`、`make test-language` 可单独运行测试。以下 npm 命令也继续可用：
+
 ```sh
 npm test                 # 核心逻辑、本地真实 SSH/Mosh、加密及翻译
 npm run test:desktop     # 终端界面、吞吐量、服务器表单及重连
@@ -206,7 +225,7 @@ npm run pack:linux       # x64 AppImage 与 deb
 ## ⚠️ 重要说明
 
 - 当前为预览版，已测试的桌面平台为 macOS。Windows/Linux 原生验收与真人 Touch ID 验证仍待完成。
-- macOS 预览包未签名，正式分发还需签名、公证和正式应用图标。
+- macOS 预览包未签名，正式分发还需签名和公证。
 - Mosh 及其运行环境为外部可选组件，当前不是完整离线安装包，也没有第三方插件市场。
 - 空闲与恢复测试使用有界测试场景和指定真实 SSH 会话，不能保证应对所有网络中断或服务器重启。
 - 启用安全锁前，服务器设置为普通本地 JSON。启用时原子替换为密文文件，但无法清除文件系统快照、旧备份或 SSD 历史数据块。

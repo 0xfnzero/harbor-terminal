@@ -1,10 +1,10 @@
 {
   "name": "harbor-terminal",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Open-source SSH client and terminal emulator with tabs, auto-reconnect, Mosh, tmux and encrypted server profiles.",
   "main": "electron/main.cjs",
   "scripts": {
-    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && HARBOR_DEV=1 electron .\"",
+    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && node scripts/dev-electron.cjs\"",
     "build": "vite build",
     "start": "npm run build && electron .",
     "test": "node --test test/*.test.cjs",
@@ -64,7 +64,8 @@
       "dist/**/*",
       "electron/**/*",
       "package.json",
-      "shared/**/*"
+      "shared/**/*",
+      "assets/icon.png"
     ],
     "asarUnpack": [
       "node_modules/node-pty/**/*"
@@ -74,13 +75,15 @@
       "target": [
         "dir"
       ],
-      "identity": null
+      "identity": null,
+      "icon": "assets/icon.icns"
     },
     "win": {
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -91,7 +94,8 @@
         "AppImage",
         "deb"
       ],
-      "category": "System"
+      "category": "System",
+      "icon": "assets/icon.png"
     }
   },
   "homepage": "https://fnzero.dev/",

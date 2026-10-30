@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-Current version: **0.1.0 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
+Current version: **0.1.1 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
 
 ![Harbor Terminal open-source SSH client with saved server management, bilingual controls and a desktop terminal workspace](docs/images/harbor-terminal-en.png)
 
@@ -166,7 +166,7 @@ External PEM files are not imported or re-encrypted. Passwords, OTPs and private
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [Development, architecture and validation notes (Chinese)](docs/DEVELOPMENT_CN.md)
-- [v0.1.0 release notes](docs/releases/v0.1.0.md)
+- [v0.1.1 release notes](docs/releases/v0.1.1.md)
 - [Shared UI and backend translations](shared/messages.json)
 
 <a id="project-structure"></a>
@@ -188,6 +188,25 @@ terminal/
 
 ## 🧪 Testing and builds
 
+Install Node.js, npm and GNU Make, then run `make` or `make help` to list every command and description. On Windows, use GNU Make (for example from MSYS2) with Windows Node.js. Build Windows installers in a native Windows environment, not inside WSL Linux.
+
+```sh
+make                       # List commands and descriptions
+make install               # Install locked dependencies
+make dev                   # Development app with hot reload
+make start                 # Build and launch the desktop app
+make build                 # Build only the renderer
+make test-all              # Run all tests sequentially
+make pack                  # Package for the current OS and architecture
+make pack-mac ARCH=arm64    # macOS DMG + ZIP
+make pack-mac ARCH=x64      # Intel macOS DMG + ZIP
+make pack-win ARCH=x64      # Windows NSIS + portable EXE
+make pack-linux ARCH=x64    # Linux AppImage + deb
+make pack OUT=release/demo # Choose an output directory
+```
+
+`ARCH` defaults to `native`; `arm64` and `x64` are also supported. Run each packaging command on its target OS. Cross-architecture builds require the target native-module toolchain and subsequent device testing. Packaging never automatically publishes to GitHub. Individual test commands are `make test`, `make test-desktop`, `make test-security` and `make test-language`. The existing npm commands remain available:
+
 ```sh
 npm test                 # Core, real local SSH/Mosh fixtures, vault and translations
 npm run test:desktop     # Terminal UI, throughput, server dialogs and reconnect
@@ -206,7 +225,7 @@ Build on the target OS so native PTY dependencies match. Packages go to `release
 ## ⚠️ Important Notes
 
 - Preview software: macOS is the currently tested desktop platform. Windows/Linux native acceptance and physical Touch ID verification remain pending.
-- macOS preview builds are unsigned. Public distribution still needs signing, notarization and a production icon.
+- macOS preview builds are unsigned. Public distribution still needs signing and notarization.
 - Mosh and its runtime are optional external components, not a bundled offline distribution or third-party plugin marketplace.
 - Idle/recovery tests use bounded fixtures and selected real SSH sessions; they do not guarantee survival of every outage or a server reboot.
 - Before enabling the lock, server settings are ordinary local JSON. Enabling encryption replaces that file atomically but cannot erase filesystem snapshots, old backups or historical SSD blocks.

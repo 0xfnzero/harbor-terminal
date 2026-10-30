@@ -266,7 +266,9 @@ app.whenReady().then(async () => {
     }
   });
   function createWindow() {
-    win = new BrowserWindow({ width: 1320, height: 860, minWidth: 920, minHeight: 600, title: 'Harbor Terminal', backgroundColor: '#0e1118', ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 19, y: 22 } } : {}), webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false } });
+    const icon = path.join(__dirname, '../assets/icon.png');
+    if (process.platform === 'darwin') app.dock?.setIcon(icon);
+    win = new BrowserWindow({ width: 1320, height: 860, minWidth: 920, minHeight: 600, title: 'Harbor Terminal', icon, backgroundColor: '#0e1118', ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 19, y: 22 } } : {}), webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false } });
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', (event) => event.preventDefault());
     if (!app.isPackaged && process.env.HARBOR_DEV === '1') win.loadURL('http://localhost:5173');
