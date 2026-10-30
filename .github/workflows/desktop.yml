@@ -1,0 +1,56 @@
+name: Desktop builds
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            package: pack:mac
+          - os: windows-latest
+            package: pack:win
+          - os: ubuntu-latest
+            package: pack:linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install optional Mosh for protocol tests
+        if: runner.os == 'macOS'
+        run: brew install mosh
+      - name: Install Linux test dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y mosh xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1
+      - run: npm test
+      - run: npm run test:desktop
+        if: runner.os != 'Linux'
+      - run: xvfb-run -a npm run test:desktop
+        if: runner.os == 'Linux'
+      - run: npm run test:security
+        if: runner.os != 'Linux'
+      - run: xvfb-run -a npm run test:security
+        if: runner.os == 'Linux'
+      - run: npm run test:language
+        if: runner.os != 'Linux'
+      - run: xvfb-run -a npm run test:language
+        if: runner.os == 'Linux'
+      - run: npm run ${{ matrix.package }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harbor-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            release/**/*.exe
+            release/**/*.AppImage
+            release/**/*.deb
+            release/mac*/Harbor Terminal.app/**

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+release/
+*.log
+.DS_Store
+release-next/
+.release-assets/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+servers.json
+preferences.json
+mosh-runtime.json
+release-publish/

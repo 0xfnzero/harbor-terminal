@@ -1,0 +1,105 @@
+{
+  "name": "harbor-terminal",
+  "version": "0.1.0",
+  "description": "Open-source SSH client and terminal emulator with tabs, auto-reconnect, Mosh, tmux and encrypted server profiles.",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && HARBOR_DEV=1 electron .\"",
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "test": "node --test test/*.test.cjs",
+    "test:desktop": "npm run build && node test/desktop.cjs",
+    "pack:mac": "npm run build && electron-builder --mac dir",
+    "postinstall": "node electron/prepare-pty.cjs",
+    "pack:win": "npm run build && electron-builder --win --x64",
+    "pack:linux": "npm run build && electron-builder --linux --x64",
+    "test:security": "npm run build && node test/security-desktop.cjs",
+    "test:language": "npm run build && node test/language-desktop.cjs"
+  },
+  "keywords": [
+    "terminal-emulator",
+    "ssh-client",
+    "ssh",
+    "mosh",
+    "tmux",
+    "auto-reconnect",
+    "encrypted-storage",
+    "electron",
+    "macos",
+    "windows",
+    "linux",
+    "remote-development"
+  ],
+  "author": "Harbor",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
+    "node-pty": "^1.1.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@babel/parser": "^8.0.10",
+    "@vitejs/plugin-react": "^6.1.2",
+    "@xterm/headless": "^6.0.0",
+    "concurrently": "^10.0.6",
+    "electron": "^45.2.0",
+    "electron-builder": "^26.18.0",
+    "playwright": "^1.64.1",
+    "ssh2": "^1.17.0",
+    "vite": "^8.3.5",
+    "wait-on": "^9.5.1"
+  },
+  "private": true,
+  "build": {
+    "appId": "dev.harbor.terminal",
+    "productName": "Harbor Terminal",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "shared/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dir"
+      ],
+      "identity": null
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "System"
+    }
+  },
+  "homepage": "https://fnzero.dev/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xfnzero/harbor-terminal.git"
+  },
+  "bugs": {
+    "url": "https://github.com/0xfnzero/harbor-terminal/issues"
+  }
+}
