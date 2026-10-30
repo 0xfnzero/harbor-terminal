@@ -17,9 +17,6 @@
     <a href="LICENSE">
         <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="许可证">
     </a>
-    <a href="https://github.com/0xfnzero/harbor-terminal/actions/workflows/desktop.yml">
-        <img src="https://github.com/0xfnzero/harbor-terminal/actions/workflows/desktop.yml/badge.svg" alt="Desktop CI">
-    </a>
     <a href="https://github.com/0xfnzero/harbor-terminal/stargazers">
         <img src="https://img.shields.io/github/stars/0xfnzero/harbor-terminal?style=social" alt="GitHub stars">
     </a>
@@ -170,7 +167,6 @@ Mosh 先用 SSH 认证，再使用 UDP。默认服务器端口为 **60042**，�
 - [中文 README](README_CN.md)
 - [开发、架构与验证记录](docs/DEVELOPMENT_CN.md)
 - [首版发布说明](docs/releases/v0.1.0.md)
-- [桌面构建流程](.github/workflows/desktop.yml)
 - [界面与后端共用翻译词典](shared/messages.json)
 
 <a id="project-structure"></a>
@@ -203,7 +199,7 @@ npm run pack:win         # x64 NSIS 安装包与便携 EXE
 npm run pack:linux       # x64 AppImage 与 deb
 ```
 
-请在目标操作系统构建，使原生 PTY 依赖与平台匹配。产物默认位于 `release/`，开发验收版可能使用 `release-next/`。CI 已定义 macOS、Windows 和 Linux 原生任务，但配置存在不等于任务已运行。
+请在目标操作系统构建，使原生 PTY 依赖与平台匹配。产物默认位于 `release/`，开发验收版可能使用 `release-next/`。构建与测试在本地执行，本仓库不启用 GitHub Actions。
 
 <a id="important-notes"></a>
 

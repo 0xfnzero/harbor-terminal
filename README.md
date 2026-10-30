@@ -17,9 +17,6 @@
     <a href="LICENSE">
         <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
     </a>
-    <a href="https://github.com/0xfnzero/harbor-terminal/actions/workflows/desktop.yml">
-        <img src="https://github.com/0xfnzero/harbor-terminal/actions/workflows/desktop.yml/badge.svg" alt="Desktop CI">
-    </a>
     <a href="https://github.com/0xfnzero/harbor-terminal/stargazers">
         <img src="https://img.shields.io/github/stars/0xfnzero/harbor-terminal?style=social" alt="GitHub stars">
     </a>
@@ -42,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-Current version: **0.1.0 Preview**. macOS has been tested locally. Windows/Linux adapters and build workflows are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
+Current version: **0.1.0 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
 
 ![Harbor Terminal open-source SSH client with saved server management, bilingual controls and a desktop terminal workspace](docs/images/harbor-terminal.png)
 
@@ -170,7 +167,6 @@ External PEM files are not imported or re-encrypted. Passwords, OTPs and private
 - [中文 README](README_CN.md)
 - [Development, architecture and validation notes (Chinese)](docs/DEVELOPMENT_CN.md)
 - [v0.1.0 release notes](docs/releases/v0.1.0.md)
-- [Desktop build workflow](.github/workflows/desktop.yml)
 - [Shared UI and backend translations](shared/messages.json)
 
 <a id="project-structure"></a>
@@ -203,7 +199,7 @@ npm run pack:win         # x64 NSIS installer and portable EXE
 npm run pack:linux       # x64 AppImage and deb
 ```
 
-Build on the target OS so native PTY dependencies match. Packages go to `release/`; development acceptance builds may use `release-next/`. The CI workflow defines native macOS, Windows and Linux jobs, but configuration alone is not evidence those jobs have run.
+Build on the target OS so native PTY dependencies match. Packages go to `release/`; development acceptance builds may use `release-next/`. Builds and tests are run locally; GitHub Actions is disabled for this repository.
 
 <a id="important-notes"></a>
 
