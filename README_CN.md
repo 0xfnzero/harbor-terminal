@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-当前版本：**0.1.4 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
+当前版本：**0.1.5 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
 
 ![Harbor Terminal 开源 SSH 客户端：服务器管理、中英文切换与终端工作空间](docs/images/harbor-terminal-zh.png)
 
@@ -186,7 +186,7 @@ Mosh 先用 SSH 认证，再使用 UDP。默认服务器端口为 **60042**，�
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [开发、架构与验证记录](docs/DEVELOPMENT_CN.md)
-- [v0.1.4 发布说明](docs/releases/v0.1.4.md)
+- [v0.1.5 发布说明](docs/releases/v0.1.5.md)
 - [界面与后端共用翻译词典](shared/messages.json)
 
 <a id="project-structure"></a>

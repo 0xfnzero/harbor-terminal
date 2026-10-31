@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-Current version: **0.1.4 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
+Current version: **0.1.5 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
 
 ![Harbor Terminal open-source SSH client with saved server management, bilingual controls and a desktop terminal workspace](docs/images/harbor-terminal-en.png)
 
@@ -186,7 +186,7 @@ External PEM files are not imported or re-encrypted. Passwords, OTPs and private
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [Development, architecture and validation notes (Chinese)](docs/DEVELOPMENT_CN.md)
-- [v0.1.4 release notes](docs/releases/v0.1.4.md)
+- [v0.1.5 release notes](docs/releases/v0.1.5.md)
 - [Shared UI and backend translations](shared/messages.json)
 
 <a id="project-structure"></a>
