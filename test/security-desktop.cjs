@@ -69,7 +69,7 @@ const net = require('node:net');
     assert.equal((await page.evaluate(() => window.harbor.getSecurity())).locked, true);
     console.log('PASS automatic SSH reconnect while vault is locked');
     const blocked = await page.evaluate(async id => {
-      const calls = [() => window.harbor.listServers(), () => window.harbor.getServer('test'), () => window.harbor.saveServer({ name: 'bad', host: 'bad.example.com' }), () => window.harbor.deleteServer('test'), () => window.harbor.openSession({ id: crypto.randomUUID() }), () => window.harbor.reconnect(id), () => window.harbor.closeSession(id)];
+      const calls = [() => window.harbor.copyText('blocked'), () => window.harbor.pasteText('blocked'), () => window.harbor.openLink('https://example.com'), () => window.harbor.listServers(), () => window.harbor.getServer('test'), () => window.harbor.saveServer({ name: 'bad', host: 'bad.example.com' }), () => window.harbor.deleteServer('test'), () => window.harbor.openSession({ id: crypto.randomUUID() }), () => window.harbor.reconnect(id), () => window.harbor.closeSession(id)];
       return Promise.all(calls.map(async fn => { try { await fn(); return false; } catch { return true; } }));
     }, running[0].id);
     await page.evaluate(id => window.harbor.input(id, 'echo LOCK_INPUT_LEAK\r'), running[0].id);

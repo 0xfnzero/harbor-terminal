@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-Current version: **0.1.1 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
+Current version: **0.1.2 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
 
 ![Harbor Terminal open-source SSH client with saved server management, bilingual controls and a desktop terminal workspace](docs/images/harbor-terminal-en.png)
 
@@ -127,6 +127,26 @@ Open **Appearance**, select a preset and adjust font, font size, line height, le
 - Windows/Linux: `Ctrl+Shift+T` opens a local terminal; `Ctrl+Shift+W` closes the current tab.
 - Dropdowns support arrow keys, Home/End, Enter and Escape.
 
+### Terminal colors and controls
+
+New local tabs enable shell styling by default; turn it off in Appearance. zsh/bash use blue directories, cyan links and green executables. GNU ls also distinguishes archive and image extensions; macOS ls colors by file type. zsh includes BSD-3-Clause licensed zsh-syntax-highlighting 0.8.0 and preserves an already-loaded user plugin; PowerShell uses PSReadLine when available. ANSI colors follow the selected terminal theme without rewriting arbitrary command output. Styling replaces the local prompt but never edits user shell configuration files; disable it if you prefer your own prompt framework. Remote shells retain their server configuration.
+
+- Copy / paste: macOS `Cmd+C` / `Cmd+V`; Windows/Linux `Ctrl+Shift+C` / `Ctrl+Shift+V`; `Shift+Insert` also pastes.
+- `Ctrl+C` still interrupts commands. Right-click for copy, paste, select all, search, clear scrollback and scroll to bottom.
+- Search: `Cmd+F` / `Ctrl+Shift+F`; Enter for next, Shift+Enter for previous, Escape to close.
+- Select the terminal buffer: `Cmd+A` / `Ctrl+Shift+A`; clear scrollback: `Cmd+K` / `Ctrl+Shift+K` (does not stop remote tasks).
+- Multiline paste requires confirmation and uses xterm's bracketed paste support; this is not a command sandbox.
+- Command/Ctrl-click HTTP(S) links to open them in your default browser.
+- `make test-terminal` checks clipboard, context menus, search and interrupt keys.
+
+### Input and clipboard protection
+
+Configure this under **Security → Input & clipboard protection**. On macOS, Secure Keyboard Entry is enabled while Harbor has focus and released on blur or exit. Windows/Linux do not provide this macOS mechanism. It may affect global shortcuts or accessibility tools and can be disabled.
+
+Copy and paste use the normal system clipboard and interoperate with other apps. Harbor adds ownership markers and platform-specific history/sync exclusion hints. Compatible clipboard managers may honor these hints; they are not access controls. Optional expiry is 30/60/120 seconds, with timed clearing disabled by default. On lock or normal exit, Harbor attempts to clear only clipboard data that still carries its ownership marker, preserving later copies from other apps. Cleanup is best-effort and cannot retract text already read or recorded elsewhere.
+
+**This does not guarantee protection against malware.** The system clipboard is shared, and keyboard protection cannot defeat a compromised OS/process, injection or screen capture. Temporary plaintext used for input, paste previews and IPC cannot be guaranteed to be immediately erased from JavaScript memory.
+
 <a id="connections"></a>
 
 ## Connection and recovery notes
@@ -166,7 +186,7 @@ External PEM files are not imported or re-encrypted. Passwords, OTPs and private
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [Development, architecture and validation notes (Chinese)](docs/DEVELOPMENT_CN.md)
-- [v0.1.1 release notes](docs/releases/v0.1.1.md)
+- [v0.1.2 release notes](docs/releases/v0.1.2.md)
 - [Shared UI and backend translations](shared/messages.json)
 
 <a id="project-structure"></a>

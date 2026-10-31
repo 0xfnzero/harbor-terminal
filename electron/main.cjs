@@ -1,6 +1,8 @@
 const { t: tr, getLanguage, setLanguage, validateLanguage } = require('./locale.cjs');
-const { app, BrowserWindow, ipcMain, dialog, powerMonitor, safeStorage, systemPreferences, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, powerMonitor, safeStorage, systemPreferences, Menu, clipboard, ClipboardItem, shell } = require('electron');
 const pty = require('node-pty');
+const { ProtectedClipboard, defaults: privacyDefaults, validate: validatePrivacy } = require('./protected-clipboard.cjs');
+const { styledShell } = require('./shell-style.cjs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
@@ -18,6 +20,13 @@ let securityBusy = false;
 let pendingLock = false;
 let appearance = defaults();
 let appearanceQueue = Promise.resolve();
+let inputPrivacy = privacyDefaults();
+let privacyQueue = Promise.resolve();
+const protectedClipboard = new ProtectedClipboard(clipboard, ClipboardItem, { guard: () => assertAccess() });
+function updateSecureKeyboard() {
+  if (process.platform === 'darwin') app.setSecureKeyboardEntryEnabled(Boolean(inputPrivacy.secureKeyboard && win?.isFocused()));
+}
+function privacyState() { return { ...inputPrivacy, secureKeyboardSupported: process.platform === 'darwin', secureKeyboardActive: process.platform === 'darwin' && app.isSecureKeyboardEntryEnabled() }; }
 const sessions = new Map();
 const runtimeFile = () => path.join(app.getPath('userData'), 'mosh-runtime.json');
 const configFile = () => path.join(app.getPath('userData'), 'servers.json');
@@ -27,6 +36,7 @@ const status = (s, state, extra = {}) => { s.state = state; emit({ id: s.id, typ
 function securityState() { return pendingLock ? { ...vault.state(), enabled: true, locked: true } : vault.state(); }
 function publishSecurity() { if (win && !win.isDestroyed()) win.webContents.send('security:changed', securityState()); }
 function lockVault() {
+  protectedClipboard.clear().catch(() => {});
   if (securityBusy) { pendingLock = true; publishSecurity(); return; }
   vault.lock();
   if (vault.state().locked) {
@@ -60,7 +70,9 @@ function launch(s) {
   const generation = ++s.generation;
   status(s, s.purpose ? 'installing' : s.serverBox ? 'connecting' : 'local');
   try {
-    const { executable, args, env: commandEnv } = sessionCommand(s.serverBox ? vault.readSessionForReconnect(s.serverBox) : null, s.remoteName, s.purpose, runtimeFile(), s.configureNetwork);
+    let command = sessionCommand(s.serverBox ? vault.readSessionForReconnect(s.serverBox) : null, s.remoteName, s.purpose, runtimeFile(), s.configureNetwork);
+    if (!s.serverBox && !s.purpose && appearance.shellStyle) command = styledShell(command, path.join(app.getPath('userData'), 'shell-style'));
+    const { executable, args, env: commandEnv } = command;
     s.pty = pty.spawn(executable, args, {
       name: 'xterm-256color', cols: s.cols, rows: s.rows,
       cwd: os.homedir(), env: { ...process.env, ...commandEnv, PATH: [path.dirname(executable), process.env.PATH, '/usr/bin', '/bin'].filter(Boolean).join(path.delimiter), TERM: 'xterm-256color', COLORTERM: 'truecolor' },
@@ -109,10 +121,11 @@ function stop(s) {
 
 function refreshMenu() {
   const item = (role, label) => ({ role, label: tr(label) });
+  const edit = (action, label, key) => ({ label: tr(label), accelerator: process.platform === 'darwin' ? `Command+${key}` : `Control+Shift+${key}`, click: () => win?.webContents.send('terminal:edit', action) });
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(process.platform === 'darwin' ? [{ label: 'Harbor', submenu: [item('about', '关于 Harbor'), { type: 'separator' }, item('hide', '隐藏 Harbor'), item('hideOthers', '隐藏其他应用'), item('unhide', '显示全部'), { type: 'separator' }, item('quit', '退出 Harbor')] }] : []),
     { label: tr('文件'), submenu: [item('close', '关闭窗口'), ...(process.platform !== 'darwin' ? [item('quit', '退出 Harbor')] : [])] },
-    { label: tr('编辑'), submenu: [item('undo', '撤销'), item('redo', '重做'), { type: 'separator' }, item('cut', '剪切'), item('copy', '复制'), item('paste', '粘贴'), item('selectAll', '全选')] },
+    { label: tr('编辑'), submenu: [item('undo', '撤销'), item('redo', '重做'), { type: 'separator' }, item('cut', '剪切'), edit('copy', '复制', 'C'), edit('paste', '粘贴', 'V'), edit('selectAll', '全选', 'A')] },
     { label: tr('视图'), submenu: [item('reload', '重新加载'), item('forceReload', '强制重新加载'), item('toggleDevTools', '开发者工具'), { type: 'separator' }, item('resetZoom', '实际大小'), item('zoomIn', '放大'), item('zoomOut', '缩小'), item('togglefullscreen', '全屏')] },
     { label: tr('窗口'), submenu: [item('minimize', '最小化'), item('zoom', '缩放窗口'), ...(process.platform === 'darwin' ? [item('front', '全部置于前面')] : [])] },
   ]));
@@ -125,6 +138,40 @@ function registerIPC() {
   };
   const handle = (name, fn) => ipcMain.handle(name, (event, ...args) => { trusted(event); return fn(...args); });
   const on = (name, fn) => ipcMain.on(name, (event, ...args) => { trusted(event); fn(...args); });
+  handle('terminal:edit-text', action => {
+    if (action === 'copy') assertAccess();
+    if (['copy', 'paste', 'selectAll'].includes(action)) win?.webContents[action]();
+  });
+  handle('input-privacy:get', () => privacyState());
+  handle('input-privacy:save', input => {
+    assertAccess();
+    const next = validatePrivacy(input);
+    const result = privacyQueue.then(async () => {
+      assertAccess();
+      await protectedClipboard.clear();
+      assertAccess();
+      await atomicWrite(path.join(app.getPath('userData'), 'input-privacy.json'), next);
+      inputPrivacy = next; updateSecureKeyboard(); return privacyState();
+    });
+    privacyQueue = result.catch(() => {}); return result;
+  });
+  handle('clipboard:copy', text => {
+    assertAccess();
+    if (typeof text !== 'string' || text.length > 1048576) throw new Error(tr('文本过长，最多支持 1 MB'));
+    return protectedClipboard.copy(text, inputPrivacy);
+  });
+  handle('clipboard:paste', async supplied => {
+    assertAccess();
+    const text = supplied === undefined ? await protectedClipboard.read() : supplied;
+    assertAccess();
+    if (typeof text !== 'string' || text.length > 1048576) throw new Error(tr('文本过长，最多支持 1 MB'));
+    return text;
+  });
+  handle('terminal:link', url => {
+    assertAccess();
+    if (typeof url !== 'string' || url.length > 8192 || !/^https?:\/\//i.test(url)) return;
+    return shell.openExternal(new URL(url).href);
+  });
   handle('language:get', () => getLanguage());
   handle('language:set', input => {
     const next = validateLanguage(input);
@@ -236,6 +283,8 @@ function registerIPC() {
 function clamp(value, fallback) { return Number.isInteger(value) ? Math.max(2, Math.min(value, 1000)) : fallback; }
 
 app.whenReady().then(async () => {
+  try { inputPrivacy = validatePrivacy(JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'input-privacy.json'), 'utf8'))); }
+  catch (error) { if (error.code !== 'ENOENT') dialog.showErrorBox(tr('输入保护配置读取失败'), error.message); }
   try { setLanguage(JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'preferences.json'), 'utf8')).language); }
   catch (error) { if (error.code !== 'ENOENT') dialog.showErrorBox(tr('语言配置读取失败'), error.message); }
   refreshMenu();
@@ -269,14 +318,21 @@ app.whenReady().then(async () => {
     const icon = path.join(__dirname, '../assets/icon.png');
     if (process.platform === 'darwin') app.dock?.setIcon(icon);
     win = new BrowserWindow({ width: 1320, height: 860, minWidth: 920, minHeight: 600, title: 'Harbor Terminal', icon, backgroundColor: '#0e1118', ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 19, y: 22 } } : {}), webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false } });
+    win.on('focus', updateSecureKeyboard);
+    win.on('blur', updateSecureKeyboard);
+    updateSecureKeyboard();
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', (event) => event.preventDefault());
     if (!app.isPackaged && process.env.HARBOR_DEV === '1') win.loadURL('http://localhost:5173');
     else win.loadFile(path.join(__dirname, '../dist/index.html'));
-    win.on('closed', () => { lockVault(); for (const s of sessions.values()) { stop(s); vault.releaseSession(s.serverBox); } sessions.clear(); win = null; });
+    win.on('closed', () => { if (process.platform === 'darwin') app.setSecureKeyboardEntryEnabled(false); lockVault(); for (const s of sessions.values()) { stop(s); vault.releaseSession(s.serverBox); } sessions.clear(); win = null; });
   }
   createWindow();
   app.on('activate', () => { if (!win) createWindow(); });
 });
-app.on('before-quit', () => { vault?.dispose(); for (const s of sessions.values()) stop(s); });
+let quitting = false;
+app.on('before-quit', event => {
+  if (process.platform === 'darwin') app.setSecureKeyboardEntryEnabled(false);
+  if (!quitting) { event.preventDefault(); quitting = true; Promise.race([protectedClipboard.clear(), new Promise(resolve => setTimeout(resolve, 1000))]).catch(() => {}).finally(() => app.quit()); }
+  vault?.dispose(); for (const s of sessions.values()) stop(s); });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

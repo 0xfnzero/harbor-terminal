@@ -1,3 +1,4 @@
+import { TerminalContextMenu, PasteDialog } from './terminal-overlays.jsx';
 import { LanguageSwitch } from './language.jsx';
 import { t as tr, useLanguage, initializeLanguage } from './i18n.jsx';
 import { SecurityDialog, LockScreen } from './security.jsx';
@@ -6,6 +7,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon } from '@xterm/addon-search';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { terminalShortcut } from './terminal-actions.js';
 import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
@@ -57,6 +61,16 @@ function tabTitle(tab) {
 
 function TerminalPane({ tab, active, onStatus, appearance }) {
   useLanguage();
+  const [contextMenu, setContextMenu] = useState(null);
+  const [pastePreview, setPastePreview] = useState(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [found, setFound] = useState(true);
+  const [selected, setSelected] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const searchInput = useRef(null);
+  const searchRef = useRef(null);
+  const actionRef = useRef(null);
   const el = useRef(null);
   const terminalRef = useRef(null);
   const fitRef = useRef(null);
@@ -67,6 +81,12 @@ function TerminalPane({ tab, active, onStatus, appearance }) {
     const term = new Terminal({ ...terminalOptions(appearance), scrollback: 5000, allowProposedApi: false });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    const search = new SearchAddon();
+    term.loadAddon(search);
+    searchRef.current = search;
+    term.loadAddon(new WebLinksAddon((event, url) => {
+      if (event.metaKey || event.ctrlKey) api.openLink(url).catch(error => setActionError(error.message));
+    }));
     term.open(el.current);
     terminalRef.current = term;
     fitRef.current = fit;
@@ -90,13 +110,74 @@ function TerminalPane({ tab, active, onStatus, appearance }) {
       resizeFrame = requestAnimationFrame(() => { if (activeRef.current && el.current?.clientWidth) fit.fit(); });
     });
     observer.observe(el.current);
-    // Protect app shortcuts; all other input, including Ctrl+C, goes to the PTY.
-    term.attachCustomKeyEventHandler((event) => !((isMac ? event.metaKey : event.ctrlKey && event.shiftKey) && ['t', 'w', 'k'].includes(event.key.toLowerCase())));
+    const allowed = () => alive && activeRef.current && !el.current?.closest('[aria-hidden=true]');
+    let pasting = false;
+    let pendingCopy = Promise.resolve();
+    async function paste(supplied, confirmed = false) {
+      if (pasting || !allowed()) return;
+      pasting = true;
+      try {
+        await pendingCopy;
+        if (!allowed()) return;
+        const text = await api.pasteText(supplied);
+        if (text !== null && allowed()) {
+          if (!confirmed && /[\r\n]/.test(text)) setPastePreview(text);
+          else { term.clearSelection(); term.paste(text); term.focus(); }
+        }
+      } catch (error) { if (alive) setActionError(error.message); }
+      finally { pasting = false; }
+    }
+    async function action(name, supplied) {
+      if (!allowed()) return;
+      try {
+        if (name === 'copy' && (supplied || term.hasSelection())) {
+          const result = api.copyText(supplied || term.getSelection());
+          pendingCopy = result.catch(() => {});
+          await result;
+        }
+        if (name === 'paste') return paste();
+        if (name === 'pasteConfirmed') return paste(supplied, true);
+        if (name === 'selectAll') term.selectAll();
+        if (name === 'clear') { term.clear(); search.clearDecorations(); }
+        if (name === 'bottom') term.scrollToBottom();
+        if (name === 'search') { setSearchOpen(true); return; }
+        term.focus();
+      } catch (error) { if (alive) setActionError(error.message); }
+    }
+    actionRef.current = action;
+    const menuEdit = event => {
+      if (allowed() && el.current?.contains(document.activeElement)) { event.preventDefault(); void action(event.detail); }
+    };
+    window.addEventListener('harbor-edit', menuEdit);
+    const selection = term.onSelectionChange(() => setSelected(term.hasSelection()));
+    const pasteEvent = event => { event.preventDefault(); event.stopImmediatePropagation(); void paste(); };
+    const copyEvent = event => {
+      if (!allowed() || !term.hasSelection()) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      void action('copy');
+    };
+    const contextMenu = event => {
+      event.preventDefault(); event.stopPropagation();
+      if (allowed()) setContextMenu({ x: event.clientX, y: event.clientY, selected: term.getSelection() });
+    };
+    const host = el.current;
+    host.addEventListener('paste', pasteEvent, true);
+    host.addEventListener('copy', copyEvent, true);
+    host.addEventListener('contextmenu', contextMenu);
+    term.attachCustomKeyEventHandler(event => {
+      const name = terminalShortcut(event, isMac);
+      if (name) {
+        event.preventDefault();
+        if (event.type === 'keydown') void action(name);
+        return false;
+      }
+      return !((isMac ? event.metaKey : event.ctrlKey && event.shiftKey) && ['t', 'w'].includes(event.key.toLowerCase()));
+    });
     api.openSession({ id: tab.id, serverId: tab.server?.id, purpose: tab.purpose, modeOverride: tab.modeOverride, cols: term.cols, rows: term.rows }).catch((error) => {
       if (alive) { onStatus(tab.id, { state: 'error', message: error.message }); term.write(`\r\n${error.message}\r\n`); }
     });
     if (activeRef.current) term.focus();
-    return () => { alive = false; cancelAnimationFrame(resizeFrame); observer.disconnect(); off(); input.dispose(); resize.dispose(); term.dispose(); api.closeSession(tab.id).catch(() => {}); };
+    return () => { alive = false; cancelAnimationFrame(resizeFrame); observer.disconnect(); off(); input.dispose(); resize.dispose(); selection.dispose(); window.removeEventListener('harbor-edit', menuEdit); host.removeEventListener('paste', pasteEvent, true); host.removeEventListener('copy', copyEvent, true); host.removeEventListener('contextmenu', contextMenu); term.dispose(); api.closeSession(tab.id).catch(() => {}); };
   }, []);
   useEffect(() => {
     if (active && terminalRef.current) {
@@ -119,7 +200,34 @@ function TerminalPane({ tab, active, onStatus, appearance }) {
     const frame = requestAnimationFrame(() => { if (activeRef.current) fitRef.current?.fit(); });
     return () => cancelAnimationFrame(frame);
   }, [appearance]);
-  return <div style={{ background: appearance.colors.background }} className={`terminal-pane ${active ? 'active' : ''}`} ref={el} aria-label={tr("{0}终端", [tabTitle(tab)])} />;
+  useEffect(() => { if (!active) { setContextMenu(null); setPastePreview(null); } }, [active]);
+  useEffect(() => api.onSecurity(state => { if (state.locked) { setContextMenu(null); setPastePreview(null); } }), []);
+  useEffect(() => { if (searchOpen && active) searchInput.current?.focus(); }, [searchOpen, active]);
+  function find(previous = false) {
+    if (!query) { searchRef.current?.clearDecorations(); setFound(true); return; }
+    setFound(Boolean(searchRef.current?.[previous ? 'findPrevious' : 'findNext'](query)));
+  }
+  return <div style={{ background: appearance.colors.background }} className={`terminal-pane ${active ? 'active' : ''}`} aria-label={tr("{0}终端", [tabTitle(tab)])}>
+    <div className="terminal-surface" ref={el}/>
+    {contextMenu && active && <TerminalContextMenu position={contextMenu} selected={contextMenu.selected} mac={isMac} onClose={() => { setContextMenu(null); terminalRef.current?.focus(); }} onAction={name => { const text = contextMenu.selected; setContextMenu(null); actionRef.current?.(name, name === 'copy' ? text : undefined); }}/>}
+    {pastePreview !== null && active && <PasteDialog text={pastePreview} onCancel={() => { setPastePreview(null); terminalRef.current?.focus(); }} onConfirm={() => { const text = pastePreview; setPastePreview(null); actionRef.current?.('pasteConfirmed', text); }}/>}
+    <div className="terminal-tools" role="toolbar" aria-label={tr('终端工具')}>
+      <button disabled={!selected} onClick={() => actionRef.current?.('copy')} title={isMac ? '⌘ C' : 'Ctrl Shift C'}>{tr('复制')}</button>
+      <button onClick={() => actionRef.current?.('paste')} title={isMac ? '⌘ V' : 'Ctrl Shift V'}>{tr('粘贴')}</button>
+      <button onClick={() => actionRef.current?.('search')} title={isMac ? '⌘ F' : 'Ctrl Shift F'}>{tr('搜索终端')}</button>
+      <button onClick={() => actionRef.current?.('bottom')}>{tr('滚动到底部')}</button>
+    </div>
+    {searchOpen && <form className="terminal-search" onSubmit={event => { event.preventDefault(); find(); }} onKeyDown={event => {
+      if (event.key === 'Escape') { event.stopPropagation(); setSearchOpen(false); searchRef.current?.clearDecorations(); terminalRef.current?.focus(); }
+      if (event.key === 'Enter' && event.shiftKey) { event.preventDefault(); find(true); }
+    }}>
+      <input ref={searchInput} aria-label={tr('搜索终端')} placeholder={tr('搜索终端')} value={query} onChange={event => { setQuery(event.target.value); setFound(true); }}/>
+      {!found && <span role="status">{tr('未找到匹配项')}</span>}
+      <button type="button" onClick={() => find(true)} aria-label={tr('上一个匹配项')}>↑</button><button type="submit" aria-label={tr('下一个匹配项')}>↓</button>
+      <button type="button" aria-label={tr('关闭搜索')} onClick={() => { setSearchOpen(false); searchRef.current?.clearDecorations(); terminalRef.current?.focus(); }}>×</button>
+    </form>}
+    {actionError && <div className="terminal-action-error" role="alert">{actionError}<button aria-label={tr('关闭')} onClick={() => setActionError('')}>×</button></div>}
+  </div>;
 }
 
 const authLabels = { auto: '本机密钥 / SSH 配置', key: '私钥 / PEM 文件', 'key-password': '私钥 + 密码 / 验证码', password: '密码登录' };
@@ -189,6 +297,11 @@ function ServerDialog({ server, onClose, onSave, onDelete }) {
 }
 
 function App() {
+  useEffect(() => api?.onEdit(action => {
+    const event = new CustomEvent('harbor-edit', { detail: action, cancelable: true });
+    window.dispatchEvent(event);
+    if (!event.defaultPrevented) api.editText(action).catch(() => {});
+  }), []);
   useLanguage();
   const [servers, setServers] = useState([]);
   const [tabs, setTabs] = useState([]);
@@ -282,7 +395,7 @@ function App() {
       {error && <div className="error app-error" role="alert">{error}<button onClick={() => setError('')}>{tr("关闭")}</button></div>}
       {active && <div className="session-toolbar"><div><span className={`dot ${['running', 'mosh', 'local'].includes(active.state) ? 'green' : 'amber'}`}/><RecoveryStatus tab={active}/><span className="toolbar-divider"/>{active.server ? <code>{active.server.username ? `${active.server.username}@` : ''}{active.server.host}:{active.server.port}</code> : <code>login shell</code>}</div><div>{active.server?.transport === 'mosh' && <button className="reconnect" onClick={() => openTab(active.server, 'ssh')}>{tr("改用 SSH")}</button>}{active.server && <span className="network-badge" title={tr("运行状态不代表登录成功；Mosh 的网络状态请查看终端内提示")}>{active.server.transport === 'mosh' ? `Mosh · ${active.server.prediction === 'always' ? tr("始终预测") : active.server.prediction === 'never' ? tr("关闭预测") : tr("自适应预测")}` : tr(networkLabels[active.server.networkProfile || 'balanced'])}{active.server.compression ? tr(" · SSH 压缩") : ''}</span>}{active.state === 'retrying' && <button className="reconnect" onClick={() => api.pauseRetry(activeId).catch((e) => setError(e.message))}>{tr("暂停重连")}</button>}{active.server?.persistent && <span className="persist-badge"><Icon name="shield" size={13}/>{tr("tmux 持久会话")}</span>}{['exited', 'error', 'retrying', 'paused'].includes(active.state) && <button className="reconnect" onClick={() => api.reconnect(activeId).catch((e) => setError(e.message))}><Icon name="refresh" size={14}/>{tr("重新连接")}</button>}</div></div>}
       <div className="terminal-area">{tabs.map((tab) => tab.purpose ? <InstallationPane key={tab.id} api={api} tab={tab} active={tab.id === activeId} onStatus={onStatus}/> : <TerminalPane key={tab.id} tab={tab} active={tab.id === activeId} onStatus={onStatus} appearance={appearance}/>)}{!tabs.length && <div className="welcome"><div className="welcome-topline"><span className="small-line"/>{tr("你的下一段会话，从这里开始")}</div><div className="welcome-icon"><Icon name="terminal" size={38}/></div><h1>{tr("每一次连接，都能继续。")}</h1><p className="welcome-subtitle">{tr("本地开发，远程运维。")}<br/>{tr("把你的服务器与工作会话，放在同一个地方。")}</p><div className="welcome-actions"><button className="primary" onClick={() => setDialog({})}><Icon name="plus" size={17}/>{tr("添加第一台服务器")}<Icon name="arrow" size={16}/></button><button className="secondary" onClick={() => openTab()}><Icon name="terminal" size={17}/>{tr("打开本地终端")}</button></div><div className="feature-grid"><div><span className="feature-number">01</span><h3>{tr("一键进入工作状态")}</h3><p>{tr("保存 SSH 连接，点击名称")}<br/>{tr("即可在独立标签页中打开。")}</p></div><div><span className="feature-number">02</span><h3>{tr("断线，不中断进程")}</h3><p>{tr("自动重连搭配远程 tmux，")}<br/>{tr("网络恢复后接回原有会话。")}</p></div><div><span className="feature-number">03</span><h3>{tr("专注终端性能")}</h3><p>{tr("原生 PTY，批量传输输出，")}<br/>{tr("有界缓存与输出背压。")}</p></div></div><div className="tmux-tip"><Icon name="shield" size={16}/><span>{tr("启用持久会话前，请在远程服务器安装 ")}<code>tmux</code>{tr("。")}</span></div></div>}</div>
-      <footer className="statusbar"><div><span className="dot green"/>Harbor <span className="status-separator">/</span> {tabs.length === 1 ? tr("1 个会话") : tr("{0} 个会话", [tabs.length])}</div><div>{active?.server?.persistent ? <><span>{tr("关闭标签页会分离 tmux；远程进程继续运行")}</span><span className="status-separator">·</span><button onClick={async () => { try { await navigator.clipboard.writeText('tmux list-sessions'); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) { setError(e.message); } }}>{copied ? tr("已复制命令") : tr("复制会话查看命令")}</button></> : <><span>UTF-8</span><span className="status-separator">·</span><span>xterm-256color</span></>}</div></footer>
+      <footer className="statusbar"><div><span className="dot green"/>Harbor <span className="status-separator">/</span> {tabs.length === 1 ? tr("1 个会话") : tr("{0} 个会话", [tabs.length])}</div><div>{active?.server?.persistent ? <><span>{tr("关闭标签页会分离 tmux；远程进程继续运行")}</span><span className="status-separator">·</span><button onClick={async () => { try { await api.copyText('tmux list-sessions'); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) { setError(e.message); } }}>{copied ? tr("已复制命令") : tr("复制会话查看命令")}</button></> : <><span>UTF-8</span><span className="status-separator">·</span><span>xterm-256color</span></>}</div></footer>
     </main>
     {securityOpen && <SecurityDialog api={api} state={security} onClose={() => setSecurityOpen(false)} onChange={applySecurity}/> }
     {componentsOpen && <ComponentsDialog api={api} servers={servers} onClose={() => setComponentsOpen(false)} onInstall={installComponent}/>}

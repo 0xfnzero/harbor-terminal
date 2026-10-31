@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-当前版本：**0.1.1 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
+当前版本：**0.1.2 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
 
 ![Harbor Terminal 开源 SSH 客户端：服务器管理、中英文切换与终端工作空间](docs/images/harbor-terminal-zh.png)
 
@@ -127,6 +127,26 @@ AWS 下载的 `.pem` 在「私钥 / PEM 文件」中选择。由 SSH CA 签发�
 - Windows/Linux：`Ctrl+Shift+T` 打开本地终端，`Ctrl+Shift+W` 关闭当前标签页。
 - 下拉框支持方向键、Home/End、Enter 和 Escape。
 
+### 终端配色与操作
+
+本地新标签页默认启用 Shell 美化，可在「终端外观」关闭。zsh/bash 使用蓝色目录、青色链接、绿色可执行文件；GNU ls 还区分归档和图片扩展名，macOS 自带 ls 按文件类型着色。zsh 内置 BSD-3-Clause 授权的 zsh-syntax-highlighting 0.8.0（保留已加载的用户插件）；PowerShell 使用 PSReadLine（可用时）。这些 ANSI 颜色由所选主题映射，不会给普通命令输出强行添加颜色。本地提示符会被美化，用户的 Shell 配置文件不会被修改；若已有自定义提示符框架，可关闭此选项。远程 Shell 仍使用服务器配置。
+
+- 复制 / 粘贴：macOS `⌘C` / `⌘V`；Windows/Linux `Ctrl+Shift+C` / `Ctrl+Shift+V`，另支持 `Shift+Insert` 粘贴。
+- `Ctrl+C` 保留为中断命令；右键提供复制、粘贴、全选、搜索、清空滚动记录和滚动到底部。
+- 搜索：`⌘F` / `Ctrl+Shift+F`；Enter 下一个、Shift+Enter 上一个、Escape 关闭。
+- 全选终端缓冲区：`⌘A` / `Ctrl+Shift+A`；清空滚动记录：`⌘K` / `Ctrl+Shift+K`（不停止远程任务）。
+- 多行粘贴先确认，再通过 xterm 的 bracketed paste 支持交给终端；不要把该机制当作命令安全沙箱。
+- 按住 Command/Ctrl 点击 HTTP(S) 链接在默认浏览器打开。
+- `make test-terminal` 验证剪贴板、右键菜单、搜索及中断键。
+
+### 输入与剪贴板保护
+
+在「安全设置 → 输入与剪贴板保护」配置。macOS 默认在 Harbor 窗口获得焦点时启用 Secure Keyboard Entry，失焦或退出时释放；Windows/Linux 不提供此 macOS 能力。该机制可能影响全局快捷键与辅助功能，可关闭。
+
+复制粘贴使用正常系统剪贴板，支持与其他应用互通，不限制为应用内复制。Harbor 写入的内容附带所有权标记及平台支持的历史/同步排除提示；兼容的剪贴板管理器可以遵守这些提示，但它们不是访问控制。可选 30/60/120 秒自动清理，默认不定时清理；锁定或正常退出时尝试清除仍属于 Harbor 的内容，不覆盖其他应用后续复制的内容。清理是尽力而为，无法撤销已经被其他进程读取或记录的文本。
+
+**不能保证抵御恶意软件监听。** 系统剪贴板是共享资源；键盘保护也不能抵御系统或进程被控制、注入、屏幕捕获等攻击。JavaScript 中用于输入、粘贴预览和传输的临时明文无法保证立即从内存中擦除。
+
 <a id="connections"></a>
 
 ## 连接与恢复说明
@@ -166,7 +186,7 @@ Mosh 先用 SSH 认证，再使用 UDP。默认服务器端口为 **60042**，�
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [开发、架构与验证记录](docs/DEVELOPMENT_CN.md)
-- [v0.1.1 发布说明](docs/releases/v0.1.1.md)
+- [v0.1.2 发布说明](docs/releases/v0.1.2.md)
 - [界面与后端共用翻译词典](shared/messages.json)
 
 <a id="project-structure"></a>

@@ -1,5 +1,16 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('harbor', {
+  getInputPrivacy: () => ipcRenderer.invoke('input-privacy:get'),
+  saveInputPrivacy: value => ipcRenderer.invoke('input-privacy:save', value),
+  editText: action => ipcRenderer.invoke('terminal:edit-text', action),
+  onEdit: callback => {
+    const listener = (_, action) => callback(action);
+    ipcRenderer.on('terminal:edit', listener);
+    return () => ipcRenderer.removeListener('terminal:edit', listener);
+  },
+  copyText: text => ipcRenderer.invoke('clipboard:copy', text),
+  pasteText: text => ipcRenderer.invoke('clipboard:paste', text),
+  openLink: url => ipcRenderer.invoke('terminal:link', url),
   getLanguage: () => ipcRenderer.invoke('language:get'),
   setLanguage: (language) => ipcRenderer.invoke('language:set', language),
   getCapabilities: () => ipcRenderer.invoke('transport:capabilities'),
