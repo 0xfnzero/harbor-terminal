@@ -329,11 +329,29 @@ app.whenReady().then(async () => {
     win.on('closed', () => { if (process.platform === 'darwin') app.setSecureKeyboardEntryEnabled(false); lockVault(); for (const s of sessions.values()) { stop(s); vault.releaseSession(s.serverBox); } sessions.clear(); win = null; });
   }
   createWindow();
-  app.on('activate', () => { if (!win) createWindow(); });
+  app.on('activate', () => { if (!win && quitPhase === 'idle') createWindow(); });
 });
-let quitting = false;
+let quitPhase = 'idle';
 app.on('before-quit', event => {
   if (process.platform === 'darwin') app.setSecureKeyboardEntryEnabled(false);
-  if (!quitting) { event.preventDefault(); quitting = true; Promise.race([protectedClipboard.clear(), new Promise(resolve => setTimeout(resolve, 1000))]).catch(() => {}).finally(() => app.quit()); }
-  vault?.dispose(); for (const s of sessions.values()) stop(s); });
+  if (quitPhase === 'ready') return;
+  event.preventDefault();
+  if (quitPhase === 'cleaning') return;
+  quitPhase = 'cleaning';
+  let timeout;
+  Promise.race([
+    protectedClipboard.clear(),
+    new Promise(resolve => { timeout = setTimeout(resolve, 1000); }),
+  ]).catch(() => {}).finally(() => {
+    clearTimeout(timeout);
+    // Resume outside the native quit callback/microtask cycle, after cancellation
+    // has settled. Repeated Cmd+Q requests share the same cleanup operation.
+    setImmediate(() => { quitPhase = 'ready'; app.quit(); });
+  });
+});
+app.on('will-quit', () => {
+  // Do not invalidate a live window's vault while the first quit is postponed.
+  for (const s of sessions.values()) stop(s);
+  vault?.dispose();
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

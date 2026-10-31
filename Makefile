@@ -3,7 +3,7 @@ NPM ?= npm
 ARCH ?= native
 OUT ?= release
 
-.PHONY: help install dev start build test test-desktop test-security test-language test-terminal test-components test-all pack pack-mac pack-win pack-linux
+.PHONY: help install dev start build test test-desktop test-security test-language test-terminal test-components test-quit test-all pack pack-mac pack-win pack-linux
 
 help: ## Show all commands and descriptions
 	@node scripts/make-help.cjs
@@ -38,6 +38,9 @@ test-terminal: ## Run copy, paste, context-menu and search UI tests
 test-components: ## Test tmux detection, installation and persistent connection UI
 	$(NPM) run test:components
 
+test-quit: ## Verify native app quit and bounded cleanup
+	$(NPM) run test:quit
+
 test-all: ## Run all tests sequentially (safe with make -j)
 	$(NPM) test
 	$(NPM) run test:desktop
@@ -45,6 +48,7 @@ test-all: ## Run all tests sequentially (safe with make -j)
 	$(NPM) run test:language
 	$(NPM) run test:terminal
 	$(NPM) run test:components
+	$(NPM) run test:quit
 
 pack: ## Package for the current OS; ARCH=native|arm64|x64 OUT=release
 	node scripts/package.cjs native "$(ARCH)" "$(OUT)"

@@ -19,3 +19,10 @@ function run(script, args) {
 }
 run(path.join(path.dirname(require.resolve('vite/package.json')), 'bin/vite.js'), ['build']);
 run(path.join(path.dirname(require.resolve('electron-builder/package.json')), 'cli.js'), [...targets[platform], `--${arch}`, `--config.directories.output=${path.resolve(output)}`, '--publish', 'never']);
+
+if (platform === 'darwin') {
+  const appPath = path.resolve(output, arch === 'arm64' ? 'mac-arm64' : 'mac', 'Harbor Terminal.app');
+  const check = spawnSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', appPath], { stdio: 'inherit' });
+  if (check.error) console.error(check.error.message);
+  if (check.status !== 0) process.exit(check.status || 1);
+}

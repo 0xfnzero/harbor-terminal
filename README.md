@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-Current version: **0.1.3 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
+Current version: **0.1.4 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
 
 ![Harbor Terminal open-source SSH client with saved server management, bilingual controls and a desktop terminal workspace](docs/images/harbor-terminal-en.png)
 
@@ -186,7 +186,7 @@ External PEM files are not imported or re-encrypted. Passwords, OTPs and private
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [Development, architecture and validation notes (Chinese)](docs/DEVELOPMENT_CN.md)
-- [v0.1.3 release notes](docs/releases/v0.1.3.md)
+- [v0.1.4 release notes](docs/releases/v0.1.4.md)
 - [Shared UI and backend translations](shared/messages.json)
 
 <a id="project-structure"></a>
@@ -245,7 +245,7 @@ Build on the target OS so native PTY dependencies match. Packages go to `release
 ## ⚠️ Important Notes
 
 - Preview software: macOS is the currently tested desktop platform. Windows/Linux native acceptance and physical Touch ID verification remain pending.
-- macOS preview builds are unsigned. Public distribution still needs signing and notarization.
+- macOS preview builds use ad-hoc signing and pass deep signature verification. They are not Developer ID signed or Apple notarized, so macOS may still show a developer verification warning.
 - Mosh and its runtime are optional external components, not a bundled offline distribution or third-party plugin marketplace.
 - Idle/recovery tests use bounded fixtures and selected real SSH sessions; they do not guarantee survival of every outage or a server reboot.
 - Before enabling the lock, server settings are ordinary local JSON. Enabling encryption replaces that file atomically but cannot erase filesystem snapshots, old backups or historical SSD blocks.

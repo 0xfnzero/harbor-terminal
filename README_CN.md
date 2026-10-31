@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-当前版本：**0.1.3 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
+当前版本：**0.1.4 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
 
 ![Harbor Terminal 开源 SSH 客户端：服务器管理、中英文切换与终端工作空间](docs/images/harbor-terminal-zh.png)
 
@@ -186,7 +186,7 @@ Mosh 先用 SSH 认证，再使用 UDP。默认服务器端口为 **60042**，�
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [开发、架构与验证记录](docs/DEVELOPMENT_CN.md)
-- [v0.1.3 发布说明](docs/releases/v0.1.3.md)
+- [v0.1.4 发布说明](docs/releases/v0.1.4.md)
 - [界面与后端共用翻译词典](shared/messages.json)
 
 <a id="project-structure"></a>
@@ -245,7 +245,7 @@ npm run pack:linux       # x64 AppImage 与 deb
 ## ⚠️ 重要说明
 
 - 当前为预览版，已测试的桌面平台为 macOS。Windows/Linux 原生验收与真人 Touch ID 验证仍待完成。
-- macOS 预览包未签名，正式分发还需签名和公证。
+- macOS 预览包采用临时签名并通过深度签名校验，尚无 Developer ID 签名和 Apple 公证，系统仍可能提示无法验证开发者。
 - Mosh 及其运行环境为外部可选组件，当前不是完整离线安装包，也没有第三方插件市场。
 - 空闲与恢复测试使用有界测试场景和指定真实 SSH 会话，不能保证应对所有网络中断或服务器重启。
 - 启用安全锁前，服务器设置为普通本地 JSON。启用时原子替换为密文文件，但无法清除文件系统快照、旧备份或 SSD 历史数据块。
