@@ -1,3 +1,4 @@
+import { attachTerminalScroll } from './terminal-scroll.js';
 import { TerminalContextMenu, PasteDialog } from './terminal-overlays.jsx';
 import { LanguageSwitch } from './language.jsx';
 import { t as tr, useLanguage, initializeLanguage } from './i18n.jsx';
@@ -13,6 +14,7 @@ import { terminalShortcut } from './terminal-actions.js';
 import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
+import { ServerActionsMenu, DeleteServerDialog } from './server-actions.jsx';
 import { ComponentsDialog, InstallationPane } from './components.jsx';
 import { AppearanceDialog, defaultAppearance, terminalOptions } from './appearance.jsx';
 
@@ -40,6 +42,7 @@ function Icon({ name, size = 18 }) {
   const paths = {
     terminal: <><path d="m5 6 5 6-5 6M13 18h6" /></>,
     server: <><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6"/></>,
+    more: <><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,
     plus: <path d="M12 5v14M5 12h14"/>,
     close: <path d="m6 6 12 12M18 6 6 18"/>,
     arrow: <path d="M5 12h14m-6-6 6 6-6 6"/>,
@@ -88,6 +91,7 @@ function TerminalPane({ tab, active, onStatus, appearance }) {
       if (event.metaKey || event.ctrlKey) api.openLink(url).catch(error => setActionError(error.message));
     }));
     term.open(el.current);
+    attachTerminalScroll(term);
     terminalRef.current = term;
     fitRef.current = fit;
     fit.fit();
@@ -308,6 +312,8 @@ function App() {
   const [activeId, setActiveId] = useState(null);
   const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState(null);
+  const [serverMenu, setServerMenu] = useState(null);
+  const [deleteServer, setDeleteServer] = useState(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [appearance, setAppearance] = useState(defaultAppearance);
@@ -319,7 +325,7 @@ function App() {
   async function applySecurity(next) {
     securityRef.current = next; setSecurity(next);
     if (next.locked) {
-      setServers([]); setQuery(''); setDialog(null); setSecurityOpen(false); setComponentsOpen(false); setAppearanceOpen(false); setError('');
+      setServers([]); setQuery(''); setDialog(null); setServerMenu(null); setDeleteServer(null); setSecurityOpen(false); setComponentsOpen(false); setAppearanceOpen(false); setError('');
       setTabs(prev => prev.map(t => ({ ...t, title: tr("已锁定会话"), server: t.server ? { id: t.server.id } : null, installUsername: undefined })));
     } else {
       try {
@@ -352,6 +358,20 @@ function App() {
     setTabs((prev) => [...prev, { id, title: (server?.name || tr("本地终端")) + (modeOverride === 'ssh' ? ' · SSH' : ''), server: modeOverride === 'ssh' ? { ...server, transport: 'ssh' } : server, modeOverride, state: 'starting' }]);
     setActiveId(id);
   }
+  function selectServer(server) {
+    setServerMenu(null);
+    const latest = tabs.findLast(tab => tab.server?.id === server.id && !tab.purpose);
+    if (latest) setActiveId(latest.id);
+    else openTab(server);
+  }
+  async function serverAction(action, server) {
+    if (action === 'new') { openTab(server); return; }
+    if (action === 'delete') { setDeleteServer(server); return; }
+    try {
+      const full = await api.getServer(server.id);
+      if (!securityRef.current?.locked && full) setDialog({ server: full });
+    } catch (e) { setError(e.message); }
+  }
   function installComponent(server, configureNetwork, installUsername, component = 'mosh', checkOnly = false) {
     if (tabs.length >= 32) throw new Error(tr("最多可同时打开 32 个标签页。"));
     const id = crypto.randomUUID();
@@ -379,13 +399,13 @@ function App() {
   function onStatus(id, event) { setTabs((prev) => prev.map((t) => t.id === id ? { ...t, ...event } : t)); }
   useEffect(() => {
     const key = (e) => {
-      if (!(isMac ? e.metaKey : e.ctrlKey && e.shiftKey) || dialog || appearanceOpen || componentsOpen || securityOpen || !security || security.locked) return;
+      if (!(isMac ? e.metaKey : e.ctrlKey && e.shiftKey) || dialog || deleteServer || serverMenu || appearanceOpen || componentsOpen || securityOpen || !security || security.locked) return;
       if (e.key.toLowerCase() === 't') { e.preventDefault(); openTab(); }
       if (e.key.toLowerCase() === 'w' && activeId) { e.preventDefault(); closeTab(activeId); }
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [tabs, activeId, dialog, appearanceOpen, componentsOpen, securityOpen, security]);
+  }, [tabs, activeId, dialog, deleteServer, serverMenu, appearanceOpen, componentsOpen, securityOpen, security]);
   if (!api) return <div className="browser-notice"><Icon name="terminal" size={36}/><h1>{tr("Harbor 是一个桌面终端")}</h1><p>{tr("请在项目目录运行 ")}<code>npm run dev</code>{tr(" 启动桌面版，以使用本地 Shell 和 SSH。")}</p></div>;
   return <><div className="app-shell" inert={!security || security.locked ? true : undefined} aria-hidden={!security || security.locked ? true : undefined}>
     <aside className="sidebar">
@@ -394,7 +414,7 @@ function App() {
       <button className="local-button" onClick={() => openTab()}><Icon name="terminal"/><span>{tr("本地终端")}</span><kbd>{tabShortcut}</kbd></button>
       <div className="section-heading"><span>{tr("服务器")}</span><span className="count">{servers.length}</span><button className="icon-button" title={tr("添加服务器")} aria-label={tr("添加服务器")} onClick={() => setDialog({})}><Icon name="plus" size={17}/></button></div>
       <div className="search"><Icon name="search" size={15}/><input aria-label={tr("搜索服务器")} placeholder={tr("搜索连接…")} value={query} onChange={(e) => setQuery(e.target.value)}/></div>
-      <div className="server-list">{servers.filter((s) => `${s.name} ${s.host} ${s.username}`.toLowerCase().includes(query.toLowerCase())).map((server) => <div className={`server-item ${active?.server?.id === server.id ? 'selected' : ''}`} key={server.id}><button className="server-open" onClick={() => openTab(server)} title={tr("连接 {0}", [server.name])}><div className="server-symbol"><Icon name="server" size={17}/></div><div className="server-text"><strong>{server.name}</strong><small>{server.username ? `${server.username}@` : ''}{server.host}</small></div><span className={`dot ${tabs.some((t) => t.server?.id === server.id && ['running', 'mosh'].includes(t.state)) ? 'green' : ''}`}/></button><button className="edit-server icon-button" aria-label={tr("编辑 {0}", [server.name])} onClick={async () => { try { const full = await api.getServer(server.id); if (!securityRef.current?.locked) setDialog({ server: full }); } catch (e) { setError(e.message); } }}><Icon name="edit" size={14}/></button></div>)}{servers.length === 0 && <div className="sidebar-empty">{tr("还没有服务器")}<br/><span>{tr("添加后，点击即可连接。")}</span></div>}{servers.length > 0 && !servers.some((s) => `${s.name} ${s.host} ${s.username}`.toLowerCase().includes(query.toLowerCase())) && <div className="sidebar-empty">{tr("没有匹配的连接")}</div>}</div>
+      <div className="server-list">{servers.filter((s) => `${s.name} ${s.host} ${s.username}`.toLowerCase().includes(query.toLowerCase())).map((server) => <div className={`server-item ${active?.server?.id === server.id ? 'selected' : ''}`} key={server.id}><button className="server-open" onClick={() => selectServer(server)} title={tr("连接 {0}", [server.name])}><div className="server-symbol"><Icon name="server" size={17}/></div><div className="server-text"><strong>{server.name}</strong><small>{server.username ? `${server.username}@` : ''}{server.host}</small></div><span className={`dot ${tabs.some((t) => t.server?.id === server.id && ['running', 'mosh'].includes(t.state)) ? 'green' : ''}`}/></button><button className="edit-server icon-button" aria-label={tr("更多操作 · {0}", [server.name])} aria-haspopup="menu" aria-expanded={serverMenu?.server.id === server.id} onClick={e => setServerMenu(serverMenu?.server.id === server.id ? null : { server, anchor: e.currentTarget })}><Icon name="more" size={17}/></button></div>)}{servers.length === 0 && <div className="sidebar-empty">{tr("还没有服务器")}<br/><span>{tr("添加后，点击即可连接。")}</span></div>}{servers.length > 0 && !servers.some((s) => `${s.name} ${s.host} ${s.username}`.toLowerCase().includes(query.toLowerCase())) && <div className="sidebar-empty">{tr("没有匹配的连接")}</div>}</div>
       <button className="add-server" onClick={() => setDialog({})}><Icon name="plus" size={16}/>{tr("添加服务器")}</button>
       <div className="sidebar-footer"><Icon name="shield" size={18}/><div>{tr("连接，由你掌控")}<small>{tr("SSH / Mosh · 本地配置存储")}</small></div></div>
     </aside>
@@ -406,6 +426,8 @@ function App() {
       <div className="terminal-area">{tabs.map((tab) => tab.purpose ? <InstallationPane onManage={() => setComponentsOpen('tmux')} onConnect={connectPersistent} key={tab.id} api={api} tab={tab} active={tab.id === activeId} onStatus={onStatus}/> : <TerminalPane key={tab.id} tab={tab} active={tab.id === activeId} onStatus={onStatus} appearance={appearance}/>)}{!tabs.length && <div className="welcome"><div className="welcome-topline"><span className="small-line"/>{tr("你的下一段会话，从这里开始")}</div><div className="welcome-icon"><Icon name="terminal" size={38}/></div><h1>{tr("每一次连接，都能继续。")}</h1><p className="welcome-subtitle">{tr("本地开发，远程运维。")}<br/>{tr("把你的服务器与工作会话，放在同一个地方。")}</p><div className="welcome-actions"><button className="primary" onClick={() => setDialog({})}><Icon name="plus" size={17}/>{tr("添加第一台服务器")}<Icon name="arrow" size={16}/></button><button className="secondary" onClick={() => openTab()}><Icon name="terminal" size={17}/>{tr("打开本地终端")}</button></div><div className="feature-grid"><div><span className="feature-number">01</span><h3>{tr("一键进入工作状态")}</h3><p>{tr("保存 SSH 连接，点击名称")}<br/>{tr("即可在独立标签页中打开。")}</p></div><div><span className="feature-number">02</span><h3>{tr("断线，不中断进程")}</h3><p>{tr("自动重连搭配远程 tmux，")}<br/>{tr("网络恢复后接回原有会话。")}</p></div><div><span className="feature-number">03</span><h3>{tr("专注终端性能")}</h3><p>{tr("原生 PTY，批量传输输出，")}<br/>{tr("有界缓存与输出背压。")}</p></div></div><div className="tmux-tip"><Icon name="shield" size={16}/><span>{tr("持久会话依赖远程组件，可在「组件」中安装 ")}<code>tmux</code>{tr("。")}</span></div></div>}</div>
       <footer className="statusbar"><div><span className="dot green"/>Harbor <span className="status-separator">/</span> {tabs.length === 1 ? tr("1 个会话") : tr("{0} 个会话", [tabs.length])}</div><div>{active?.server?.persistent ? <><span>{tr("关闭标签页会分离 tmux；远程进程继续运行")}</span><span className="status-separator">·</span><button onClick={async () => { try { await api.copyText('tmux list-sessions'); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) { setError(e.message); } }}>{copied ? tr("已复制命令") : tr("复制会话查看命令")}</button></> : <><span>UTF-8</span><span className="status-separator">·</span><span>xterm-256color</span></>}</div></footer>
     </main>
+    {serverMenu && !security?.locked && <ServerActionsMenu {...serverMenu} onClose={() => setServerMenu(null)} onAction={serverAction}/>}
+    {deleteServer && <DeleteServerDialog server={deleteServer} onClose={() => setDeleteServer(null)} onDelete={async id => { const list = await api.deleteServer(id); if (!securityRef.current?.locked) setServers(list); setDeleteServer(null); }}/>}
     {securityOpen && <SecurityDialog api={api} state={security} onClose={() => setSecurityOpen(false)} onChange={applySecurity}/> }
     {componentsOpen && <ComponentsDialog initialComponent={componentsOpen === 'tmux' ? 'tmux' : 'mosh'} api={api} servers={servers} onClose={() => setComponentsOpen(false)} onInstall={installComponent}/>}
     {appearanceOpen && <AppearanceDialog value={appearance} onClose={() => setAppearanceOpen(false)} onSave={async (value) => { setAppearance(await api.saveAppearance(value)); setAppearanceOpen(false); }}/> }

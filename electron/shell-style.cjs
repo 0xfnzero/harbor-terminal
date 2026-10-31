@@ -15,7 +15,7 @@ function styledShell(command, root, platform = process.platform, env = process.e
   };
   const colors = `export CLICOLOR=1\nexport LSCOLORS=ExGxFxdxCxegedabagacad\nexport LS_COLORS='di=01;34:ln=01;36:ex=01;32:pi=33:so=01;35:bd=33:cd=33:or=01;31:*.tar=01;31:*.gz=01;31:*.zip=01;31:*.jpg=35:*.png=35:*.mp4=35'\nalias grep='grep --color=auto'\n${platform === 'darwin' ? "alias ls='ls -G'" : "alias ls='ls --color=auto'"}\n`;
   if (name === 'bash') {
-    save('bashrc', `# Preserve the normal login setup inside this app-owned interactive shell.\n[ ! -r /etc/profile ] || . /etc/profile\nfor file in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do\n  if [ -r "$file" ]; then . "$file"; break; fi\ndone\n${colors}PS1='\\[\\e[32m\\]\\u\\[\\e[0m\\] \\[\\e[36m\\]\\w\\[\\e[0m\\]\\n\\[\\e[32m\\]\\$\\[\\e[0m\\] '\n`);
+    save('bashrc', `# Preserve the normal login setup inside this app-owned interactive shell.\n[ ! -r /etc/profile ] || . /etc/profile\nfor file in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do\n  if [ -r "$file" ]; then . "$file"; break; fi\ndone\n${colors}# Disable Readline paste highlighting, not bracketed-paste protection.\nif bind -v 2>/dev/null | grep -q '^set enable-active-region '; then\n  bind 'set enable-active-region off'\nfi\nPS1='\\[\\e[32m\\]\\u\\[\\e[0m\\] \\[\\e[36m\\]\\w\\[\\e[0m\\]\\n\\[\\e[32m\\]\\$\\[\\e[0m\\] '\n`);
     return { ...command, args: ['--rcfile', path.join(root, 'bashrc'), '-i'] };
   }
   save('.zshenv', `ZDOTDIR="$HARBOR_ORIGINAL_ZDOTDIR"\n[[ ! -r "$ZDOTDIR/.zshenv" ]] || source "$ZDOTDIR/.zshenv"\n[[ -n $ZDOTDIR ]] || ZDOTDIR="$HOME"\nexport HARBOR_ORIGINAL_ZDOTDIR="$ZDOTDIR"\nZDOTDIR="$HARBOR_STYLE_DIR"\n`);

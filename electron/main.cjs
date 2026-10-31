@@ -1,6 +1,7 @@
 const { t: tr, getLanguage, setLanguage, validateLanguage } = require('./locale.cjs');
 const { app, BrowserWindow, ipcMain, dialog, powerMonitor, safeStorage, systemPreferences, Menu, clipboard, ClipboardItem, shell } = require('electron');
 const pty = require('node-pty');
+const { resizeSession } = require('./pty-lifecycle.cjs');
 const { ProtectedClipboard, defaults: privacyDefaults, validate: validatePrivacy } = require('./protected-clipboard.cjs');
 const { styledShell } = require('./shell-style.cjs');
 const fs = require('node:fs/promises');
@@ -58,6 +59,7 @@ function flush(s) {
   if (!s.output) return;
   const data = s.output;
   s.output = '';
+  s.lastFlushAt = performance.now();
   emit({ id: s.id, type: 'data', data, generation: s.generation });
 }
 
@@ -67,6 +69,7 @@ function launch(s) {
   s.retryAt = null;
   s.stopped = false;
   s.pending = 0;
+  s.lastFlushAt = -Infinity;
   const generation = ++s.generation;
   status(s, s.purpose ? 'installing' : s.serverBox ? 'connecting' : 'local');
   try {
@@ -89,8 +92,11 @@ function launch(s) {
     if (s.state === 'connecting') status(s, s.transport === 'mosh' ? 'mosh' : 'running');
     s.output += data;
     s.pending += data.length;
-    if (s.output.length >= 32768) flush(s);
-    else if (!s.flushTimer) s.flushTimer = setTimeout(() => flush(s), 8);
+    // Deliver sparse interactive updates immediately; batch sustained output
+    // within an 8ms window instead of delaying every first byte by 8ms.
+    const remaining = 8 - (performance.now() - s.lastFlushAt);
+    if (s.output.length >= 32768 || remaining <= 0) flush(s);
+    else if (!s.flushTimer) s.flushTimer = setTimeout(() => flush(s), remaining);
     // Bound the IPC + renderer queue even while a hidden tab receives huge logs.
     if (s.pending > 262144) s.pty?.pause();
   });
@@ -271,7 +277,7 @@ function registerIPC() {
   on('session:input', (id, data) => { if (!securityBusy && !vault.state().locked && typeof data === 'string' && data.length <= 1048576) { lastActivity = Date.now(); sessions.get(id)?.pty?.write(data); } });
   on('session:resize', (id, cols, rows) => {
     const s = sessions.get(id);
-    if (s) { s.cols = clamp(cols, 80); s.rows = clamp(rows, 24); s.pty?.resize(s.cols, s.rows); }
+    if (s) resizeSession(s, clamp(cols, 80), clamp(rows, 24));
   });
   on('session:ack', (id, length, generation) => {
     const s = sessions.get(id);

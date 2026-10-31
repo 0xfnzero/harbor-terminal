@@ -459,5 +459,12 @@
   "持久会话依赖远程组件，可在「组件」中安装 ": "Persistent sessions need a remote component. Install it from Components: ",
   "请在「组件」中安装服务器端 tmux，或关闭此连接的持久会话选项。": "Install server-side tmux from Components, or disable persistent sessions for this connection.",
   "返回组件面板": "Back to Components",
-  "安装位置：仅服务器端，本机无需安装 tmux。": "Install location: server only. No local tmux installation is needed."
+  "安装位置：仅服务器端，本机无需安装 tmux。": "Install location: server only. No local tmux installation is needed.",
+  "服务器操作": "Server actions",
+  "新建标签页": "New tab",
+  "修改": "Edit",
+  "删除": "Delete",
+  "更多操作 · {0}": "More actions · {0}",
+  "仅删除保存的连接配置，已打开的标签页和远程任务不会关闭。": "Only the saved connection is removed. Open tabs and remote tasks remain running.",
+  "新建": "New"
 }

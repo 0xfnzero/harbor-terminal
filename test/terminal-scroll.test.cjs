@@ -1,0 +1,21 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const source = fs.readFileSync(require('node:path').join(__dirname, '../src/terminal-scroll.js'), 'utf8');
+test('trackpad fractions, reversal, bounded bursts and normal-buffer isolation', async () => {
+  const { attachTerminalScroll } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+  const writes = [];
+  const term = { rows: 24, buffer: { active: { type: 'alternate' } }, modes: { mouseTrackingMode: 'none', applicationCursorKeysMode: false }, element: { querySelector: () => ({ clientHeight: 480 }) }, input: data => writes.push(data), attachCustomWheelEventHandler: handler => { term.wheel = handler; } };
+  attachTerminalScroll(term);
+  let time = 0;
+  const wheel = (deltaY, extra = {}) => term.wheel({ deltaY, deltaX: 0, deltaMode: 0, timeStamp: ++time, preventDefault() {}, ...extra });
+  wheel(5); wheel(5); wheel(5); assert.deepEqual(writes, []);
+  wheel(5); assert.deepEqual(writes, ['\x1b[B']);
+  wheel(15); wheel(-20); assert.equal(writes.at(-1), '\x1b[A', 'reverse immediately without stale fractional motion');
+  wheel(100000); assert.equal(writes.at(-1), '\x1b[B'.repeat(24));
+  const count = writes.length;
+  wheel(20, { ctrlKey: true });
+  term.modes.mouseTrackingMode = 'vt200'; wheel(20);
+  term.modes.mouseTrackingMode = 'none'; term.buffer.active.type = 'normal'; wheel(20);
+  assert.equal(writes.length, count);
+});

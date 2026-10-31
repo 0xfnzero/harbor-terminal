@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-Current version: **0.1.5 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
+Current version: **0.1.6 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
 
 ![Harbor Terminal open-source SSH client with saved server management, bilingual controls and a desktop terminal workspace](docs/images/harbor-terminal-en.png)
 
@@ -107,7 +107,7 @@ Mosh is optional. Persistent remote sessions require **tmux on the server**; dis
 1. Click **Add server** and enter a name, host, username and SSH port.
 2. Use **Authentication** to select local keys, a PEM file, key + password, or password login. Passwords and key passphrases are entered during connection and are not saved.
 3. Adjust **Network & session**, then click **Save connection**.
-4. Click the saved server to open a terminal tab. Each click creates a separate connection.
+4. Click a saved server to switch to its most recently created open terminal tab, or create one if none exists. Use the three-dot menu for **New**, **Edit** or **Delete**. Deleting a saved connection does not close existing tabs.
 
 For AWS, choose the downloaded `.pem` under **Private key / PEM file**. A CA-signed SSH certificate is a separate optional file; a normal `.pub` file cannot replace your private key. The server decides whether a second authentication factor is required.
 
@@ -130,6 +130,9 @@ Open **Appearance**, select a preset and adjust font, font size, line height, le
 ### Terminal colors and controls
 
 New local tabs enable shell styling by default; turn it off in Appearance. zsh/bash use blue directories, cyan links and green executables. GNU ls also distinguishes archive and image extensions; macOS ls colors by file type. zsh includes BSD-3-Clause licensed zsh-syntax-highlighting 0.8.0 and preserves an already-loaded user plugin; PowerShell uses PSReadLine when available. ANSI colors follow the selected terminal theme without rewriting arbitrary command output. Styling replaces the local prompt but never edits user shell configuration files; disable it if you prefer your own prompt framework. Remote shells retain their server configuration.
+
+Pasted text can look selected in remote Bash because Readline highlights its active region. To hide only this highlight in the current Bash shell, run `bind 'set enable-active-region off'` (if supported). For future shells, add `set enable-active-region off` inside a `$if Bash` / `$endif` block in the remote account's `~/.inputrc`. Keep `enable-bracketed-paste` enabled. Existing tmux shells keep their current settings until reloaded; reconnecting alone does not restart them.
+
 
 - Copy / paste: macOS `Cmd+C` / `Cmd+V`; Windows/Linux `Ctrl+Shift+C` / `Ctrl+Shift+V`; `Shift+Insert` also pastes.
 - `Ctrl+C` still interrupts commands. Right-click for copy, paste, select all, search, clear scrollback and scroll to bottom.
@@ -155,7 +158,7 @@ Copy and paste use the normal system clipboard and interoperate with other apps.
 
 SSH retries abnormal transport/authentication exits with delays of 1, 2, 4, 8, 16 and then 30 seconds. Balanced, unstable-network and fast-recovery profiles adjust keepalive detection and connection timeouts. Detection times are approximate; authentication may require user input after reconnect.
 
-The same tab reuses its remote tmux session identifier. Closing a tab detaches its client; persistent remote tasks continue. Clicking a server again or restarting Harbor creates a new tab/session; attach older tmux sessions manually when needed. Server restarts or terminated remote tasks cannot be recovered by reconnecting alone.
+The same tab reuses its remote tmux session identifier. Closing a tab detaches its client; persistent remote tasks continue. Clicking a server reuses its newest open terminal tab. Choosing **New**, clicking after all of its tabs have closed, or restarting Harbor creates a new tab/session; attach older tmux sessions manually when needed. Server restarts or terminated remote tasks cannot be recovered by reconnecting alone.
 
 ### 📡 Mosh components and ports
 
@@ -186,6 +189,7 @@ External PEM files are not imported or re-encrypted. Passwords, OTPs and private
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [Development, architecture and validation notes (Chinese)](docs/DEVELOPMENT_CN.md)
+- [v0.1.6 release notes](docs/releases/v0.1.6.md)
 - [v0.1.5 release notes](docs/releases/v0.1.5.md)
 - [Shared UI and backend translations](shared/messages.json)
 
