@@ -63,7 +63,7 @@ function sshArgs(server, sessionName) {
 
 function remoteCommand(sessionName) {
   if (!/^harbor-[a-f0-9-]+$/.test(sessionName)) throw new Error(tr("无效的远程会话标识"));
-  const message = quote(tr('请先在服务器安装 tmux，或关闭此连接的持久会话选项。'));
+  const message = quote(tr('请在「组件」中安装服务器端 tmux，或关闭此连接的持久会话选项。'));
   return `if command -v tmux >/dev/null 2>&1; then exec tmux new-session -A -s ${quote(sessionName)}; else printf '\\r\\n[Harbor] %s\\r\\n' ${message}; exit 69; fi`;
 }
 

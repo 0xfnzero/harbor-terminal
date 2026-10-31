@@ -98,3 +98,32 @@ Write-Output 'The enhanced terminal component is ready.'
 `;
 }
 module.exports.windowsInstaller = windowsInstaller;
+
+// Only distribution-owned packages; never touch existing tmux sessions or firewall rules.
+function tmuxInstaller(checkOnly = false) {
+  return `set -eu
+if command -v tmux >/dev/null 2>&1; then tmux -V; exit 0; fi
+${checkOnly ? "printf 'tmux is not installed. Use Install in Components.\\n'; exit 69" : `
+if command -v apt-get >/dev/null 2>&1; then manager=apt
+elif command -v dnf >/dev/null 2>&1; then manager=dnf
+elif command -v yum >/dev/null 2>&1; then manager=yum
+elif command -v apk >/dev/null 2>&1; then manager=apk
+else printf 'Automatic tmux installation supports Debian/Ubuntu, Fedora/RHEL and Alpine. Install tmux with your server package manager.\\n'; exit 69; fi
+privilege=''
+if [ "$(id -u)" -ne 0 ]; then
+  if ! command -v sudo >/dev/null 2>&1; then printf 'Administrator access is required. Select an installation account with root or sudo access.\\n'; exit 77; fi
+  sudo -v
+  privilege=sudo
+fi
+case "$manager" in
+  apt) $privilege apt-get update; $privilege apt-get install -y --no-install-recommends tmux ;;
+  dnf) $privilege dnf install -y tmux ;;
+  yum) $privilege yum install -y tmux ;;
+  apk) $privilege apk add tmux ;;
+esac
+tmux -V
+printf 'tmux is ready. Existing sessions and firewall rules were not changed.\\n'
+`}
+`;
+}
+module.exports.tmuxInstaller = tmuxInstaller;

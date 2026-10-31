@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-Current version: **0.1.2 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
+Current version: **0.1.3 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
 
 ![Harbor Terminal open-source SSH client with saved server management, bilingual controls and a desktop terminal workspace](docs/images/harbor-terminal-en.png)
 
@@ -186,7 +186,7 @@ External PEM files are not imported or re-encrypted. Passwords, OTPs and private
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [Development, architecture and validation notes (Chinese)](docs/DEVELOPMENT_CN.md)
-- [v0.1.2 release notes](docs/releases/v0.1.2.md)
+- [v0.1.3 release notes](docs/releases/v0.1.3.md)
 - [Shared UI and backend translations](shared/messages.json)
 
 <a id="project-structure"></a>
@@ -265,3 +265,7 @@ This project is licensed under the [MIT License](LICENSE).
 - Official Website: https://fnzero.dev/
 - Telegram Group: https://t.me/fnzero_group
 - Discord: https://discord.gg/vuazbGkqQE
+
+### Install tmux from the client
+
+Open **Components → Choose component → tmux**, select a saved server and click **Check status** or confirm **Start installation**. Installation uses SSH and the server package repository (Debian/Ubuntu, Fedora/RHEL or Alpine), with root or sudo access. Existing tmux is reused; no additional port is opened. Once ready, **Enable persistence and connect** saves the persistent-session option and opens SSH with the original connection account. Existing tabs are not changed.

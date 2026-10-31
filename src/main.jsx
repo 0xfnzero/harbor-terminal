@@ -19,7 +19,7 @@ import { AppearanceDialog, defaultAppearance, terminalOptions } from './appearan
 const api = window.harbor;
 const isMac = navigator.platform.toLowerCase().includes('mac');
 const tabShortcut = isMac ? '⌘ T' : 'Ctrl ⇧ T';
-const labels = { starting: '正在启动', connecting: '正在连接', running: 'SSH 运行中', mosh: 'Mosh 运行中', local: '本地会话', paused: '重连已暂停', retrying: '等待重连', exited: '会话已结束', installed: '组件已就绪', 'network-required': '组件已安装，端口待配置', 'install-failed': '安装未完成', installing: '正在安装组件', 'restart-required': '需要重启电脑', error: '启动失败' };
+const labels = { starting: '正在启动', connecting: '正在连接', running: 'SSH 运行中', mosh: 'Mosh 运行中', local: '本地会话', paused: '重连已暂停', retrying: '等待重连', exited: '会话已结束', installed: '组件已就绪', 'component-missing': '尚未安装 tmux', 'network-required': '组件已安装，端口待配置', 'install-failed': '安装未完成', installing: '正在安装组件', 'restart-required': '需要重启电脑', error: '启动失败' };
 const emptyServer = { name: '', host: '', username: '', port: 22, identityFile: '', certificateFile: '', authMode: 'auto', moshPort: 60042, moshPortEnd: 60042, transport: 'ssh', prediction: 'adaptive', networkProfile: 'balanced', compression: false, persistent: true, autoReconnect: true };
 
 const networkLabels = { balanced: '均衡', tolerant: '弱网容错', responsive: '快速恢复' };
@@ -55,7 +55,7 @@ function Icon({ name, size = 18 }) {
 function tabTitle(tab) {
   if (!tab) return tr('概览');
   if (tab.server && !tab.server.name) return tr('已锁定会话');
-  if (tab.purpose) return tr('安装 Mosh · {0}', [tab.server?.name || tr('本机')]);
+  if (tab.purpose) return tr('{0} · {1}', [tab.component === 'tmux' ? 'tmux' : 'Mosh', tab.server?.name || tr('本机')]);
   return (tab.server?.name || tr('本地终端')) + (tab.modeOverride === 'ssh' ? ' · SSH' : '');
 }
 
@@ -287,7 +287,7 @@ function ServerDialog({ server, onClose, onSave, onDelete }) {
             <label>{tr("预测回显")}<Select aria-label={tr("预测回显")} value={form.prediction} onChange={e => set('prediction', e.target.value)}><option value="adaptive">{tr("自适应 · 延迟高时预测")}</option><option value="always">{tr("始终启用")}</option><option value="never">{tr("关闭预测")}</option></Select></label>
             <p className="form-note">{capabilities?.mosh ? tr("本机 Mosh 已就绪。") : tr("可从右上角「可选组件」安装 Mosh。")}{tr("预测改善输入等待感，不加速远程命令；服务器仍需允许对应 UDP 通信。")}</p></>}
           <label>{form.transport === 'mosh' ? tr("SSH 初始认证策略") : tr("网络策略")}<Select aria-label={tr("网络策略")} value={form.networkProfile} onChange={e => set('networkProfile', e.target.value)}><option value="balanced">{tr("均衡 · 约 45 秒无响应后重连")}</option><option value="tolerant">{tr("弱网容错 · 容忍约 3 分钟短暂中断")}</option><option value="responsive">{tr("快速恢复 · 约 15 秒无响应后重连")}</option></Select></label>
-          <div className="options"><label className="checkbox"><input type="checkbox" checked={form.persistent} onChange={e => set('persistent', e.target.checked)}/><div><strong>{tr("持久会话")}</strong><small>{tr("通过远程 tmux 保留任务，服务器需预先安装 tmux。")}</small></div></label><label className="checkbox"><input type="checkbox" disabled={form.transport === 'mosh'} checked={form.autoReconnect} onChange={e => set('autoReconnect', e.target.checked)}/><div><strong>{tr("断线自动重连")}</strong><small>{form.transport === 'mosh' ? tr("由 Mosh 自身恢复网络；进程退出后可手动重连。") : tr("SSH 异常退出后自动重试，最长间隔 30 秒。")}</small></div></label><label className="checkbox"><input type="checkbox" checked={form.compression} onChange={e => set('compression', e.target.checked)}/><div><strong>{tr("SSH 压缩")}</strong><small>{tr("适合低带宽文字输出，会增加 CPU 开销。")}</small></div></label></div>
+          <div className="options"><label className="checkbox"><input type="checkbox" checked={form.persistent} onChange={e => set('persistent', e.target.checked)}/><div><strong>{tr("持久会话")}</strong><small>{tr("通过远程 tmux 保留任务，可在「组件」中一键安装 tmux。")}</small></div></label><label className="checkbox"><input type="checkbox" disabled={form.transport === 'mosh'} checked={form.autoReconnect} onChange={e => set('autoReconnect', e.target.checked)}/><div><strong>{tr("断线自动重连")}</strong><small>{form.transport === 'mosh' ? tr("由 Mosh 自身恢复网络；进程退出后可手动重连。") : tr("SSH 异常退出后自动重试，最长间隔 30 秒。")}</small></div></label><label className="checkbox"><input type="checkbox" checked={form.compression} onChange={e => set('compression', e.target.checked)}/><div><strong>{tr("SSH 压缩")}</strong><small>{tr("适合低带宽文字输出，会增加 CPU 开销。")}</small></div></label></div>
         </div>}
       </div>
       {error && <div className="error" role="alert">{error}</div>}
@@ -328,7 +328,7 @@ function App() {
         setServers(list);
         setTabs(prev => prev.map(t => {
           const snapshot = running.find(s => s.id === t.id);
-          return snapshot ? { ...t, server: snapshot.server, title: t.purpose ? tr("安装 Mosh · {0}", [snapshot.server?.name || tr("本机")]) : (snapshot.server?.name || tr("本地终端")) + (t.modeOverride === 'ssh' ? ' · SSH' : '') } : t;
+          return snapshot ? { ...t, server: snapshot.server, title: t.purpose ? tr("{0} · {1}", [t.component === 'tmux' ? 'tmux' : 'Mosh', snapshot.server?.name || tr("本机")]) : (snapshot.server?.name || tr("本地终端")) + (t.modeOverride === 'ssh' ? ' · SSH' : '') } : t;
         }));
       } catch (e) { if (!securityRef.current?.locked) setError(e.message); }
     }
@@ -352,12 +352,21 @@ function App() {
     setTabs((prev) => [...prev, { id, title: (server?.name || tr("本地终端")) + (modeOverride === 'ssh' ? ' · SSH' : ''), server: modeOverride === 'ssh' ? { ...server, transport: 'ssh' } : server, modeOverride, state: 'starting' }]);
     setActiveId(id);
   }
-  function installComponent(server, configureNetwork, installUsername) {
+  function installComponent(server, configureNetwork, installUsername, component = 'mosh', checkOnly = false) {
     if (tabs.length >= 32) throw new Error(tr("最多可同时打开 32 个标签页。"));
     const id = crypto.randomUUID();
-    setTabs(prev => [...prev, { id, title: tr("安装 Mosh · {0}", [server?.name || tr("本机")]), server: server ? { ...server, username: installUsername || server.username, persistent: false, transport: 'ssh' } : null, installUsername, configureNetwork, purpose: server ? 'install-remote' : 'install-local', state: 'starting' }]);
+    setTabs(prev => [...prev, { id, title: tr("{0} · {1}", [component === 'tmux' ? 'tmux' : 'Mosh', server?.name || tr("本机")]), component, server: server ? { ...server, username: installUsername || server.username, persistent: false, transport: 'ssh' } : null, installUsername, configureNetwork, purpose: checkOnly ? 'check-remote' : server ? 'install-remote' : 'install-local', state: 'starting' }]);
     setActiveId(id);
     setComponentsOpen(false);
+  }
+  async function connectPersistent(serverId) {
+    try {
+      const server = await api.getServer(serverId);
+      if (!server) throw new Error(tr("服务器配置不存在"));
+      const next = { ...server, persistent: true };
+      setServers(await api.saveServer(next));
+      openTab(next, 'ssh');
+    } catch (e) { setError(e.message); }
   }
   function closeTab(id) {
     setTabs((prev) => {
@@ -394,11 +403,11 @@ function App() {
       <div className="tabbar"><div className="tabs" role="tablist">{tabs.map((tab) => <div className={`tab ${tab.id === activeId ? 'selected' : ''}`} key={tab.id}><button role="tab" aria-selected={tab.id === activeId} onClick={() => setActiveId(tab.id)}><Icon name={tab.server ? 'server' : 'terminal'} size={15}/><span>{tabTitle(tab)}</span><span className={`dot ${['running', 'mosh', 'local'].includes(tab.state) ? 'green' : tab.state === 'retrying' ? 'amber' : ''}`}/></button><button className="tab-close" aria-label={tr("关闭 {0}", [tabTitle(tab)])} onClick={() => closeTab(tab.id)}><Icon name="close" size={12}/></button></div>)}</div><button className="icon-button new-tab" aria-label={tr("新建本地终端")} title={tr("新建本地终端 {0}", [tabShortcut])} onClick={() => openTab()}><Icon name="plus" size={17}/></button></div>
       {error && <div className="error app-error" role="alert">{error}<button onClick={() => setError('')}>{tr("关闭")}</button></div>}
       {active && <div className="session-toolbar"><div><span className={`dot ${['running', 'mosh', 'local'].includes(active.state) ? 'green' : 'amber'}`}/><RecoveryStatus tab={active}/><span className="toolbar-divider"/>{active.server ? <code>{active.server.username ? `${active.server.username}@` : ''}{active.server.host}:{active.server.port}</code> : <code>login shell</code>}</div><div>{active.server?.transport === 'mosh' && <button className="reconnect" onClick={() => openTab(active.server, 'ssh')}>{tr("改用 SSH")}</button>}{active.server && <span className="network-badge" title={tr("运行状态不代表登录成功；Mosh 的网络状态请查看终端内提示")}>{active.server.transport === 'mosh' ? `Mosh · ${active.server.prediction === 'always' ? tr("始终预测") : active.server.prediction === 'never' ? tr("关闭预测") : tr("自适应预测")}` : tr(networkLabels[active.server.networkProfile || 'balanced'])}{active.server.compression ? tr(" · SSH 压缩") : ''}</span>}{active.state === 'retrying' && <button className="reconnect" onClick={() => api.pauseRetry(activeId).catch((e) => setError(e.message))}>{tr("暂停重连")}</button>}{active.server?.persistent && <span className="persist-badge"><Icon name="shield" size={13}/>{tr("tmux 持久会话")}</span>}{['exited', 'error', 'retrying', 'paused'].includes(active.state) && <button className="reconnect" onClick={() => api.reconnect(activeId).catch((e) => setError(e.message))}><Icon name="refresh" size={14}/>{tr("重新连接")}</button>}</div></div>}
-      <div className="terminal-area">{tabs.map((tab) => tab.purpose ? <InstallationPane key={tab.id} api={api} tab={tab} active={tab.id === activeId} onStatus={onStatus}/> : <TerminalPane key={tab.id} tab={tab} active={tab.id === activeId} onStatus={onStatus} appearance={appearance}/>)}{!tabs.length && <div className="welcome"><div className="welcome-topline"><span className="small-line"/>{tr("你的下一段会话，从这里开始")}</div><div className="welcome-icon"><Icon name="terminal" size={38}/></div><h1>{tr("每一次连接，都能继续。")}</h1><p className="welcome-subtitle">{tr("本地开发，远程运维。")}<br/>{tr("把你的服务器与工作会话，放在同一个地方。")}</p><div className="welcome-actions"><button className="primary" onClick={() => setDialog({})}><Icon name="plus" size={17}/>{tr("添加第一台服务器")}<Icon name="arrow" size={16}/></button><button className="secondary" onClick={() => openTab()}><Icon name="terminal" size={17}/>{tr("打开本地终端")}</button></div><div className="feature-grid"><div><span className="feature-number">01</span><h3>{tr("一键进入工作状态")}</h3><p>{tr("保存 SSH 连接，点击名称")}<br/>{tr("即可在独立标签页中打开。")}</p></div><div><span className="feature-number">02</span><h3>{tr("断线，不中断进程")}</h3><p>{tr("自动重连搭配远程 tmux，")}<br/>{tr("网络恢复后接回原有会话。")}</p></div><div><span className="feature-number">03</span><h3>{tr("专注终端性能")}</h3><p>{tr("原生 PTY，批量传输输出，")}<br/>{tr("有界缓存与输出背压。")}</p></div></div><div className="tmux-tip"><Icon name="shield" size={16}/><span>{tr("启用持久会话前，请在远程服务器安装 ")}<code>tmux</code>{tr("。")}</span></div></div>}</div>
+      <div className="terminal-area">{tabs.map((tab) => tab.purpose ? <InstallationPane onManage={() => setComponentsOpen('tmux')} onConnect={connectPersistent} key={tab.id} api={api} tab={tab} active={tab.id === activeId} onStatus={onStatus}/> : <TerminalPane key={tab.id} tab={tab} active={tab.id === activeId} onStatus={onStatus} appearance={appearance}/>)}{!tabs.length && <div className="welcome"><div className="welcome-topline"><span className="small-line"/>{tr("你的下一段会话，从这里开始")}</div><div className="welcome-icon"><Icon name="terminal" size={38}/></div><h1>{tr("每一次连接，都能继续。")}</h1><p className="welcome-subtitle">{tr("本地开发，远程运维。")}<br/>{tr("把你的服务器与工作会话，放在同一个地方。")}</p><div className="welcome-actions"><button className="primary" onClick={() => setDialog({})}><Icon name="plus" size={17}/>{tr("添加第一台服务器")}<Icon name="arrow" size={16}/></button><button className="secondary" onClick={() => openTab()}><Icon name="terminal" size={17}/>{tr("打开本地终端")}</button></div><div className="feature-grid"><div><span className="feature-number">01</span><h3>{tr("一键进入工作状态")}</h3><p>{tr("保存 SSH 连接，点击名称")}<br/>{tr("即可在独立标签页中打开。")}</p></div><div><span className="feature-number">02</span><h3>{tr("断线，不中断进程")}</h3><p>{tr("自动重连搭配远程 tmux，")}<br/>{tr("网络恢复后接回原有会话。")}</p></div><div><span className="feature-number">03</span><h3>{tr("专注终端性能")}</h3><p>{tr("原生 PTY，批量传输输出，")}<br/>{tr("有界缓存与输出背压。")}</p></div></div><div className="tmux-tip"><Icon name="shield" size={16}/><span>{tr("持久会话依赖远程组件，可在「组件」中安装 ")}<code>tmux</code>{tr("。")}</span></div></div>}</div>
       <footer className="statusbar"><div><span className="dot green"/>Harbor <span className="status-separator">/</span> {tabs.length === 1 ? tr("1 个会话") : tr("{0} 个会话", [tabs.length])}</div><div>{active?.server?.persistent ? <><span>{tr("关闭标签页会分离 tmux；远程进程继续运行")}</span><span className="status-separator">·</span><button onClick={async () => { try { await api.copyText('tmux list-sessions'); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) { setError(e.message); } }}>{copied ? tr("已复制命令") : tr("复制会话查看命令")}</button></> : <><span>UTF-8</span><span className="status-separator">·</span><span>xterm-256color</span></>}</div></footer>
     </main>
     {securityOpen && <SecurityDialog api={api} state={security} onClose={() => setSecurityOpen(false)} onChange={applySecurity}/> }
-    {componentsOpen && <ComponentsDialog api={api} servers={servers} onClose={() => setComponentsOpen(false)} onInstall={installComponent}/>}
+    {componentsOpen && <ComponentsDialog initialComponent={componentsOpen === 'tmux' ? 'tmux' : 'mosh'} api={api} servers={servers} onClose={() => setComponentsOpen(false)} onInstall={installComponent}/>}
     {appearanceOpen && <AppearanceDialog value={appearance} onClose={() => setAppearanceOpen(false)} onSave={async (value) => { setAppearance(await api.saveAppearance(value)); setAppearanceOpen(false); }}/> }
     {dialog && <ServerDialog server={dialog.server} onClose={() => setDialog(null)} onSave={async (s) => { setServers(await api.saveServer(s)); setDialog(null); }} onDelete={async (id) => { setServers(await api.deleteServer(id)); setDialog(null); }}/ >}
   </div>{security?.locked && <LockScreen api={api} state={security} onChange={applySecurity}/>} {!security && <div className="lock-screen"><p>{error || tr("正在加载安全配置…")}</p></div>}</>;

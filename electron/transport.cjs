@@ -6,7 +6,7 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { firewallScript } = require('./network.cjs');
 const { sshArgs, moshArgs } = require('./core.cjs');
-const { linuxInstaller, localInstaller, windowsInstaller, quote } = require('./installers.cjs');
+const { linuxInstaller, localInstaller, windowsInstaller, tmuxInstaller, quote } = require('./installers.cjs');
 const run = promisify(execFile);
 const wslEnvironment = 'root="$HOME/.local/share/harbor/components/mosh/current"; if [ -d "$root" ]; then export PATH="$root/usr/bin:$PATH"; export LD_LIBRARY_PATH="$(find "$root/usr/lib" -type d | paste -sd : -)${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; fi; ';
 
@@ -47,16 +47,17 @@ async function capabilities(runtimePath) {
     return { platform: 'win32', mosh: true, backend: 'wsl' };
   } catch { return { platform: 'win32', mosh: false, backend: 'wsl' }; }
 }
-function sessionCommand(server, remoteName, purpose, runtimePath, configureNetwork = true) {
+function sessionCommand(server, remoteName, purpose, runtimePath, configureNetwork = true, component = 'mosh') {
+  if (!['mosh', 'tmux'].includes(component) || (component === 'tmux' && !['install-remote', 'check-remote'].includes(purpose)) || (purpose === 'check-remote' && component !== 'tmux')) throw new Error(tr("无效的组件操作"));
   const tools = platformTools();
   if (purpose === 'install-local') {
     if (process.platform === 'win32') return { executable: tools.shell, args: ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(windowsInstaller(), 'utf16le').toString('base64')], env: { HARBOR_RUNTIME_CONFIG: runtimePath, HARBOR_LINUX_INSTALL_B64: Buffer.from(localInstaller('linux')).toString('base64') } };
     return { executable: '/bin/sh', args: ['-c', localInstaller()] };
   }
-  if (purpose === 'install-remote') {
+  if (purpose === 'install-remote' || purpose === 'check-remote') {
     if (!server) throw new Error(tr("请选择服务器"));
     const args = sshArgs({ ...server, persistent: false }, remoteName);
-    const setup = 'set -e\n(\n' + linuxInstaller('server') + '\n)\n' + (configureNetwork ? firewallScript(server) : '');
+    const setup = component === 'tmux' ? tmuxInstaller(purpose === 'check-remote') : 'set -e\n(\n' + linuxInstaller('server') + '\n)\n' + (configureNetwork ? firewallScript(server) : '');
     args.push('sh -c ' + quote(setup));
     return { executable: tools.ssh, args };
   }

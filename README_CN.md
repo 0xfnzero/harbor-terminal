@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-当前版本：**0.1.2 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
+当前版本：**0.1.3 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
 
 ![Harbor Terminal 开源 SSH 客户端：服务器管理、中英文切换与终端工作空间](docs/images/harbor-terminal-zh.png)
 
@@ -186,7 +186,7 @@ Mosh 先用 SSH 认证，再使用 UDP。默认服务器端口为 **60042**，�
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [开发、架构与验证记录](docs/DEVELOPMENT_CN.md)
-- [v0.1.2 发布说明](docs/releases/v0.1.2.md)
+- [v0.1.3 发布说明](docs/releases/v0.1.3.md)
 - [界面与后端共用翻译词典](shared/messages.json)
 
 <a id="project-structure"></a>
@@ -265,3 +265,7 @@ npm run pack:linux       # x64 AppImage 与 deb
 - 官网：https://fnzero.dev/
 - Telegram 群组：https://t.me/fnzero_group
 - Discord：https://discord.gg/vuazbGkqQE
+
+### 在客户端安装 tmux
+
+打开 **组件 → 选择组件 → tmux**，选择已保存服务器，点击 **检测状态**，或确认后点击 **开始安装**。通过 SSH 使用服务器软件仓库安装，支持 Debian/Ubuntu、Fedora/RHEL、Alpine，需要 root 或 sudo 权限。已有 tmux 会直接复用，不需要开放额外端口。就绪后点击 **开启持久会话并连接**，即可保存持久会话选项并用原连接账号打开 SSH，不影响已有标签页。
