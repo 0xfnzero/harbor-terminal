@@ -1,6 +1,6 @@
 {
   "name": "harbor-terminal",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Open-source SSH client and terminal emulator with tabs, auto-reconnect, Mosh, tmux and encrypted server profiles.",
   "main": "electron/main.cjs",
   "scripts": {
