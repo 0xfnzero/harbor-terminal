@@ -18,6 +18,7 @@
     "test:terminal": "npm run build && node test/terminal-desktop.cjs",
     "test:components": "npm run build && node test/tmux-desktop.cjs",
     "test:quit": "npm run build && node test/quit-desktop.cjs",
+    "test:layout": "npm run build && node test/layout-desktop.cjs",
     "test:scroll": "npm run build && node test/scroll-desktop.cjs",
     "test:pty": "npm run build && node test/pty-desktop.cjs",
     "test:servers": "npm run build && node test/server-actions-desktop.cjs"

@@ -3,7 +3,7 @@ NPM ?= npm
 ARCH ?= native
 OUT ?= release
 
-.PHONY: help install dev start build test test-desktop test-security test-language test-terminal test-components test-quit test-servers test-pty test-scroll test-all pack pack-mac pack-win pack-linux
+.PHONY: help install dev start build test test-desktop test-security test-language test-terminal test-components test-quit test-servers test-pty test-scroll test-layout test-all pack pack-mac pack-win pack-linux
 
 help: ## Show all commands and descriptions
 	@node scripts/make-help.cjs
@@ -50,6 +50,9 @@ test-pty: ## Test terminal resize during process exit
 test-scroll: ## Test local and full-screen terminal scrolling
 	$(NPM) run test:scroll
 
+test-layout: ## Test terminal alignment after resize, input and full-screen apps
+	$(NPM) run test:layout
+
 test-all: ## Run all tests sequentially (safe with make -j)
 	$(NPM) test
 	$(NPM) run test:desktop
@@ -61,6 +64,7 @@ test-all: ## Run all tests sequentially (safe with make -j)
 	$(NPM) run test:servers
 	$(NPM) run test:pty
 	$(NPM) run test:scroll
+	$(NPM) run test:layout
 
 pack: ## Package for the current OS; ARCH=native|arm64|x64 OUT=release
 	node scripts/package.cjs native "$(ARCH)" "$(OUT)"
