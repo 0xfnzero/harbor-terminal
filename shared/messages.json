@@ -466,5 +466,15 @@
   "删除": "Delete",
   "更多操作 · {0}": "More actions · {0}",
   "仅删除保存的连接配置，已打开的标签页和远程任务不会关闭。": "Only the saved connection is removed. Open tabs and remote tasks remain running.",
-  "新建": "New"
+  "新建": "New",
+  "临时终端": "Temporary terminal",
+  "无效的本地终端模式": "Invalid local terminal mode",
+  "终端尚未输出内容": "No terminal output yet",
+  "正在等待 Shell 输出…": "Waiting for shell output…",
+  "已跳过用户启动配置。系统 Shell 可能仍在等待，请稍后重试。": "User startup files were skipped. The system shell may still be waiting; try again later.",
+  "启动配置可能耗时较长或正在等待输入。你可以继续等待，或另开临时终端排查。": "Startup configuration may be slow or waiting for input. Keep waiting, or open a temporary terminal to investigate.",
+  "打开临时终端": "Open temporary terminal",
+  "继续等待": "Keep waiting",
+  "临时终端：未加载用户启动配置，部分开发工具可能不在 PATH 中。": "Temporary terminal: user startup files were skipped; some development tools may be missing from PATH.",
+  "在新标签页跳过用户 Shell 启动配置": "Skip user shell startup files in a new tab"
 }

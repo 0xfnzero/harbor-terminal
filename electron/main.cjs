@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, powerMonitor, safeStorage, systemPr
 const pty = require('node-pty');
 const { resizeSession } = require('./pty-lifecycle.cjs');
 const { ProtectedClipboard, defaults: privacyDefaults, validate: validatePrivacy } = require('./protected-clipboard.cjs');
+const { cleanShell } = require('./clean-shell.cjs');
 const { styledShell } = require('./shell-style.cjs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -73,8 +74,8 @@ function launch(s) {
   const generation = ++s.generation;
   status(s, s.purpose ? 'installing' : s.serverBox ? 'connecting' : 'local');
   try {
-    let command = sessionCommand(s.serverBox ? vault.readSessionForReconnect(s.serverBox) : null, s.remoteName, s.purpose, runtimeFile(), s.configureNetwork, s.component);
-    if (!s.serverBox && !s.purpose && appearance.shellStyle) command = styledShell(command, path.join(app.getPath('userData'), 'shell-style'));
+    let command = s.localMode === 'clean' ? cleanShell() : sessionCommand(s.serverBox ? vault.readSessionForReconnect(s.serverBox) : null, s.remoteName, s.purpose, runtimeFile(), s.configureNetwork, s.component);
+    if (!s.serverBox && !s.purpose && s.localMode !== 'clean' && appearance.shellStyle) command = styledShell(command, path.join(app.getPath('userData'), 'shell-style'));
     const { executable, args, env: commandEnv } = command;
     s.pty = pty.spawn(executable, args, {
       name: 'xterm-256color', cols: s.cols, rows: s.rows,
@@ -241,9 +242,10 @@ function registerIPC() {
     assertAccess();
     return result.canceled ? null : result.filePaths[0];
   });
-  handle('session:open', ({ id, serverId, cols, rows, purpose, modeOverride, configureNetwork, installUsername, component = 'mosh' }) => {
+  handle('session:open', ({ id, serverId, cols, rows, purpose, modeOverride, configureNetwork, installUsername, component = 'mosh', localMode }) => {
     assertAccess();
     if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/.test(id) || sessions.has(id) || sessions.size >= 32) throw new Error(tr("无法创建标签页（最多 32 个）"));
+    if (localMode !== undefined && (localMode !== 'clean' || serverId || purpose || modeOverride)) throw new Error(tr('无效的本地终端模式'));
     if (modeOverride !== undefined && modeOverride !== 'ssh') throw new Error(tr("无效的连接模式"));
     if (purpose !== undefined && !['install-local', 'install-remote', 'check-remote'].includes(purpose)) throw new Error(tr("无效的组件操作"));
     if (!['mosh', 'tmux'].includes(component) || (component === 'tmux' && !['install-remote', 'check-remote'].includes(purpose)) || (purpose === 'check-remote' && component !== 'tmux')) throw new Error(tr("无效的组件操作"));
@@ -252,7 +254,7 @@ function registerIPC() {
     if (serverId && !server) throw new Error(tr("服务器配置不存在"));
     const installServer = purpose === 'install-remote' && installUsername && installUsername !== server?.username ? validateServer({ ...server, username: installUsername, authMode: 'auto', identityFile: '', certificateFile: '' }) : server;
     const connection = installServer ? { ...installServer, ...(modeOverride ? { transport: modeOverride } : {}) } : null;
-    const s = { id, purpose, component, configureNetwork: configureNetwork !== false, serverBox: connection ? vault.sealSession(connection) : null, transport: connection?.transport, autoReconnect: connection?.autoReconnect, remoteName: 'harbor-' + crypto.randomUUID(), cols: clamp(cols, 80), rows: clamp(rows, 24), output: '', pending: 0, attempt: 0, generation: 0 };
+    const s = { id, purpose, component, localMode, configureNetwork: configureNetwork !== false, serverBox: connection ? vault.sealSession(connection) : null, transport: connection?.transport, autoReconnect: connection?.autoReconnect, remoteName: 'harbor-' + crypto.randomUUID(), cols: clamp(cols, 80), rows: clamp(rows, 24), output: '', pending: 0, attempt: 0, generation: 0 };
     sessions.set(id, s);
     launch(s);
     return { remoteName: s.remoteName };

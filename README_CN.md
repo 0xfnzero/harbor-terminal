@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-当前版本：**0.1.7 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
+当前版本：**0.1.8 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
 
 ![Harbor Terminal 开源 SSH 客户端：服务器管理、中英文切换与终端工作空间](docs/images/harbor-terminal-zh.png)
 
@@ -131,6 +131,8 @@ AWS 下载的 `.pem` 在「私钥 / PEM 文件」中选择。由 SSH CA 签发�
 
 本地新标签页默认启用 Shell 美化，可在「终端外观」关闭。zsh/bash 使用蓝色目录、青色链接、绿色可执行文件；GNU ls 还区分归档和图片扩展名，macOS 自带 ls 按文件类型着色。zsh 内置 BSD-3-Clause 授权的 zsh-syntax-highlighting 0.8.0（保留已加载的用户插件）；PowerShell 使用 PSReadLine（可用时）。这些 ANSI 颜色由所选主题映射，不会给普通命令输出强行添加颜色。本地提示符会被美化，用户的 Shell 配置文件不会被修改；若已有自定义提示符框架，可关闭此选项。远程 Shell 仍使用服务器配置。
 
+本地标签页在首次收到输出前显示等待提示；超过 5 秒无输出时，可另开跳过用户 Shell 启动配置的临时终端，原会话继续运行。已有输出后也可从终端工具栏打开临时终端。此功能不会自动修复配置，也不会清空整个环境；部分开发工具可能不在 PATH 中。收到输出不代表 Shell 初始化已经完成。
+
 远程 Bash 粘贴后出现反色背景，可能是 Readline 的活动区域高亮。在当前 Bash 中执行 `bind 'set enable-active-region off'`（版本支持时）即可仅关闭这种高亮；如需对后续 Shell 生效，在远程账户的 `~/.inputrc` 中用 `$if Bash` / `$endif` 包住 `set enable-active-region off`。保留 `enable-bracketed-paste`，不要关闭粘贴保护。已有 tmux Shell 需要单独重载设置，重新连接不会重启它们。
 
 
@@ -189,7 +191,7 @@ Mosh 先用 SSH 认证，再使用 UDP。默认服务器端口为 **60042**，�
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [开发、架构与验证记录](docs/DEVELOPMENT_CN.md)
-- [v0.1.7 发布说明](docs/releases/v0.1.7.md)
+- [v0.1.8 发布说明](docs/releases/v0.1.8.md)
 - [v0.1.6 发布说明](docs/releases/v0.1.6.md)
 - [v0.1.5 发布说明](docs/releases/v0.1.5.md)
 - [界面与后端共用翻译词典](shared/messages.json)

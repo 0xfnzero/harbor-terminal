@@ -59,10 +59,10 @@ function tabTitle(tab) {
   if (!tab) return tr('概览');
   if (tab.server && !tab.server.name) return tr('已锁定会话');
   if (tab.purpose) return tr('{0} · {1}', [tab.component === 'tmux' ? 'tmux' : 'Mosh', tab.server?.name || tr('本机')]);
-  return (tab.server?.name || tr('本地终端')) + (tab.modeOverride === 'ssh' ? ' · SSH' : '');
+  return (tab.server?.name || tr(tab.localMode === 'clean' ? '临时终端' : '本地终端')) + (tab.modeOverride === 'ssh' ? ' · SSH' : '');
 }
 
-function TerminalPane({ tab, active, onStatus, appearance }) {
+function TerminalPane({ tab, active, onStatus, appearance, onCleanShell }) {
   useLanguage();
   const [contextMenu, setContextMenu] = useState(null);
   const [pastePreview, setPastePreview] = useState(null);
@@ -71,6 +71,7 @@ function TerminalPane({ tab, active, onStatus, appearance }) {
   const [found, setFound] = useState(true);
   const [selected, setSelected] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [startup, setStartup] = useState(tab.server ? null : 'waiting');
   const searchInput = useRef(null);
   const searchRef = useRef(null);
   const actionRef = useRef(null);
@@ -97,10 +98,23 @@ function TerminalPane({ tab, active, onStatus, appearance }) {
     fit.fit();
     let alive = true;
     let resizeFrame;
+    let startupTimer;
+    let awaitingOutput = false;
+    const finishStartup = () => {
+      if (!awaitingOutput) return;
+      awaitingOutput = false; clearTimeout(startupTimer); setStartup(null);
+    };
+    const startWaiting = () => {
+      clearTimeout(startupTimer);
+      if (!tab.server) { awaitingOutput = true; setStartup('waiting'); startupTimer = setTimeout(() => { if (alive) setStartup('slow'); }, 5000); }
+    };
+    startWaiting();
     const off = api.onEvent((event) => {
       if (event.id !== tab.id || !alive) return;
-      if (event.type === 'data') term.write(event.data, () => api.ack(tab.id, event.data.length, event.generation));
+      if (event.type === 'data') { if (event.data.length) finishStartup(); term.write(event.data, () => api.ack(tab.id, event.data.length, event.generation)); }
       else {
+        if (event.state === 'local') startWaiting();
+        if (['exited', 'error'].includes(event.state)) finishStartup();
         onStatus(tab.id, event);
         if (event.state === 'retrying') term.write(tr("\r\n\u001b[33m[Harbor] 连接中断，{0} 秒后进行第 {1} 次重连…\u001b[0m\r\n", [event.delay / 1000, event.attempt]));
         if (event.state === 'exited') term.write(tr("\r\n\u001b[90m[Harbor] 会话结束（退出码 {0}）。可点击右上角重新连接。\u001b[0m\r\n", [event.exitCode]));
@@ -177,11 +191,11 @@ function TerminalPane({ tab, active, onStatus, appearance }) {
       }
       return !((isMac ? event.metaKey : event.ctrlKey && event.shiftKey) && ['t', 'w'].includes(event.key.toLowerCase()));
     });
-    api.openSession({ id: tab.id, serverId: tab.server?.id, purpose: tab.purpose, modeOverride: tab.modeOverride, cols: term.cols, rows: term.rows }).catch((error) => {
-      if (alive) { onStatus(tab.id, { state: 'error', message: error.message }); term.write(`\r\n${error.message}\r\n`); }
+    api.openSession({ id: tab.id, serverId: tab.server?.id, purpose: tab.purpose, localMode: tab.localMode, modeOverride: tab.modeOverride, cols: term.cols, rows: term.rows }).catch((error) => {
+      if (alive) { finishStartup(); onStatus(tab.id, { state: 'error', message: error.message }); term.write(`\r\n${error.message}\r\n`); }
     });
     if (activeRef.current) term.focus();
-    return () => { alive = false; cancelAnimationFrame(resizeFrame); observer.disconnect(); off(); input.dispose(); resize.dispose(); selection.dispose(); window.removeEventListener('harbor-edit', menuEdit); host.removeEventListener('paste', pasteEvent, true); host.removeEventListener('copy', copyEvent, true); host.removeEventListener('contextmenu', contextMenu); term.dispose(); api.closeSession(tab.id).catch(() => {}); };
+    return () => { alive = false; clearTimeout(startupTimer); cancelAnimationFrame(resizeFrame); observer.disconnect(); off(); input.dispose(); resize.dispose(); selection.dispose(); window.removeEventListener('harbor-edit', menuEdit); host.removeEventListener('paste', pasteEvent, true); host.removeEventListener('copy', copyEvent, true); host.removeEventListener('contextmenu', contextMenu); term.dispose(); api.closeSession(tab.id).catch(() => {}); };
   }, []);
   useEffect(() => {
     if (active && terminalRef.current) {
@@ -215,11 +229,19 @@ function TerminalPane({ tab, active, onStatus, appearance }) {
     <div className="terminal-surface" ref={el}/>
     {contextMenu && active && <TerminalContextMenu position={contextMenu} selected={contextMenu.selected} mac={isMac} onClose={() => { setContextMenu(null); terminalRef.current?.focus(); }} onAction={name => { const text = contextMenu.selected; setContextMenu(null); actionRef.current?.(name, name === 'copy' ? text : undefined); }}/>}
     {pastePreview !== null && active && <PasteDialog text={pastePreview} onCancel={() => { setPastePreview(null); terminalRef.current?.focus(); }} onConfirm={() => { const text = pastePreview; setPastePreview(null); actionRef.current?.('pasteConfirmed', text); }}/>}
+    {startup && active && <div className="terminal-startup" role="status">
+      <strong>{tr(startup === 'slow' ? '终端尚未输出内容' : '正在等待 Shell 输出…')}</strong>
+      {startup === 'slow' && <><p>{tr(tab.localMode === 'clean' ? '已跳过用户启动配置。系统 Shell 可能仍在等待，请稍后重试。' : '启动配置可能耗时较长或正在等待输入。你可以继续等待，或另开临时终端排查。')}</p>
+        {tab.localMode !== 'clean' && <button className="secondary" onClick={onCleanShell}>{tr('打开临时终端')}</button>}
+        <button className="secondary" onClick={() => setStartup(null)}>{tr('继续等待')}</button></>}
+    </div>}
+    {tab.localMode === 'clean' && active && !startup && <div className="clean-shell-note">{tr('临时终端：未加载用户启动配置，部分开发工具可能不在 PATH 中。')}</div>}
     <div className="terminal-tools" role="toolbar" aria-label={tr('终端工具')}>
       <button disabled={!selected} onClick={() => actionRef.current?.('copy')} title={isMac ? '⌘ C' : 'Ctrl Shift C'}>{tr('复制')}</button>
       <button onClick={() => actionRef.current?.('paste')} title={isMac ? '⌘ V' : 'Ctrl Shift V'}>{tr('粘贴')}</button>
       <button onClick={() => actionRef.current?.('search')} title={isMac ? '⌘ F' : 'Ctrl Shift F'}>{tr('搜索终端')}</button>
       <button onClick={() => actionRef.current?.('bottom')}>{tr('滚动到底部')}</button>
+      {!tab.server && tab.localMode !== 'clean' && <button onClick={onCleanShell} title={tr('在新标签页跳过用户 Shell 启动配置')}>{tr('临时终端')}</button>}
     </div>
     {searchOpen && <form className="terminal-search" onSubmit={event => { event.preventDefault(); find(); }} onKeyDown={event => {
       if (event.key === 'Escape') { event.stopPropagation(); setSearchOpen(false); searchRef.current?.clearDecorations(); terminalRef.current?.focus(); }
@@ -351,11 +373,11 @@ function App() {
   useEffect(() => { if (api) api.getAppearance().then(setAppearance).catch((e) => setError(e.message)); }, []);
   const active = tabs.find((t) => t.id === activeId);
 
-  function openTab(server, modeOverride) {
+  function openTab(server, modeOverride, localMode) {
     if (!securityRef.current || securityRef.current.locked) return;
     if (tabs.length >= 32) { setError(tr("最多可同时打开 32 个标签页。")); return; }
     const id = crypto.randomUUID();
-    setTabs((prev) => [...prev, { id, title: (server?.name || tr("本地终端")) + (modeOverride === 'ssh' ? ' · SSH' : ''), server: modeOverride === 'ssh' ? { ...server, transport: 'ssh' } : server, modeOverride, state: 'starting' }]);
+    setTabs((prev) => [...prev, { id, title: (server?.name || tr("本地终端")) + (modeOverride === 'ssh' ? ' · SSH' : ''), server: modeOverride === 'ssh' ? { ...server, transport: 'ssh' } : server, modeOverride, localMode, state: 'starting' }]);
     setActiveId(id);
   }
   function selectServer(server) {
@@ -422,8 +444,8 @@ function App() {
       <header className="topbar"><div className="breadcrumb">{tr("工作空间 ")}<span>/</span> <strong>{tabTitle(active)}</strong></div><div className="topbar-actions"><LanguageSwitch/><span className="workspace-label"><span className="dot green"/>{tr("本地工作空间")}</span><button className="appearance-button" onClick={() => setSecurityOpen(true)}><Icon name="shield" size={16}/>{tr("安全设置")}</button>{security?.enabled && <button className="appearance-button" onClick={() => api.lock().then(applySecurity).catch(e => setError(e.message))}>{tr("锁定")}</button>}<button className="appearance-button" onClick={() => setComponentsOpen(true)}>{tr("可选组件")}</button><button className="appearance-button" onClick={() => setAppearanceOpen(true)}><Icon name="palette" size={16}/>{tr("终端外观")}</button></div></header>
       <div className="tabbar"><div className="tabs" role="tablist">{tabs.map((tab) => <div className={`tab ${tab.id === activeId ? 'selected' : ''}`} key={tab.id}><button role="tab" aria-selected={tab.id === activeId} onClick={() => setActiveId(tab.id)}><Icon name={tab.server ? 'server' : 'terminal'} size={15}/><span>{tabTitle(tab)}</span><span className={`dot ${['running', 'mosh', 'local'].includes(tab.state) ? 'green' : tab.state === 'retrying' ? 'amber' : ''}`}/></button><button className="tab-close" aria-label={tr("关闭 {0}", [tabTitle(tab)])} onClick={() => closeTab(tab.id)}><Icon name="close" size={12}/></button></div>)}</div><button className="icon-button new-tab" aria-label={tr("新建本地终端")} title={tr("新建本地终端 {0}", [tabShortcut])} onClick={() => openTab()}><Icon name="plus" size={17}/></button></div>
       {error && <div className="error app-error" role="alert">{error}<button onClick={() => setError('')}>{tr("关闭")}</button></div>}
-      {active && <div className="session-toolbar"><div><span className={`dot ${['running', 'mosh', 'local'].includes(active.state) ? 'green' : 'amber'}`}/><RecoveryStatus tab={active}/><span className="toolbar-divider"/>{active.server ? <code>{active.server.username ? `${active.server.username}@` : ''}{active.server.host}:{active.server.port}</code> : <code>login shell</code>}</div><div>{active.server?.transport === 'mosh' && <button className="reconnect" onClick={() => openTab(active.server, 'ssh')}>{tr("改用 SSH")}</button>}{active.server && <span className="network-badge" title={tr("运行状态不代表登录成功；Mosh 的网络状态请查看终端内提示")}>{active.server.transport === 'mosh' ? `Mosh · ${active.server.prediction === 'always' ? tr("始终预测") : active.server.prediction === 'never' ? tr("关闭预测") : tr("自适应预测")}` : tr(networkLabels[active.server.networkProfile || 'balanced'])}{active.server.compression ? tr(" · SSH 压缩") : ''}</span>}{active.state === 'retrying' && <button className="reconnect" onClick={() => api.pauseRetry(activeId).catch((e) => setError(e.message))}>{tr("暂停重连")}</button>}{active.server?.persistent && <span className="persist-badge"><Icon name="shield" size={13}/>{tr("tmux 持久会话")}</span>}{['exited', 'error', 'retrying', 'paused'].includes(active.state) && <button className="reconnect" onClick={() => api.reconnect(activeId).catch((e) => setError(e.message))}><Icon name="refresh" size={14}/>{tr("重新连接")}</button>}</div></div>}
-      <div className="terminal-area">{tabs.map((tab) => tab.purpose ? <InstallationPane onManage={() => setComponentsOpen('tmux')} onConnect={connectPersistent} key={tab.id} api={api} tab={tab} active={tab.id === activeId} onStatus={onStatus}/> : <TerminalPane key={tab.id} tab={tab} active={tab.id === activeId} onStatus={onStatus} appearance={appearance}/>)}{!tabs.length && <div className="welcome"><div className="welcome-topline"><span className="small-line"/>{tr("你的下一段会话，从这里开始")}</div><div className="welcome-icon"><Icon name="terminal" size={38}/></div><h1>{tr("每一次连接，都能继续。")}</h1><p className="welcome-subtitle">{tr("本地开发，远程运维。")}<br/>{tr("把你的服务器与工作会话，放在同一个地方。")}</p><div className="welcome-actions"><button className="primary" onClick={() => setDialog({})}><Icon name="plus" size={17}/>{tr("添加第一台服务器")}<Icon name="arrow" size={16}/></button><button className="secondary" onClick={() => openTab()}><Icon name="terminal" size={17}/>{tr("打开本地终端")}</button></div><div className="feature-grid"><div><span className="feature-number">01</span><h3>{tr("一键进入工作状态")}</h3><p>{tr("保存 SSH 连接，点击名称")}<br/>{tr("即可在独立标签页中打开。")}</p></div><div><span className="feature-number">02</span><h3>{tr("断线，不中断进程")}</h3><p>{tr("自动重连搭配远程 tmux，")}<br/>{tr("网络恢复后接回原有会话。")}</p></div><div><span className="feature-number">03</span><h3>{tr("专注终端性能")}</h3><p>{tr("原生 PTY，批量传输输出，")}<br/>{tr("有界缓存与输出背压。")}</p></div></div><div className="tmux-tip"><Icon name="shield" size={16}/><span>{tr("持久会话依赖远程组件，可在「组件」中安装 ")}<code>tmux</code>{tr("。")}</span></div></div>}</div>
+      {active && <div className="session-toolbar"><div><span className={`dot ${['running', 'mosh', 'local'].includes(active.state) ? 'green' : 'amber'}`}/><RecoveryStatus tab={active}/><span className="toolbar-divider"/>{active.server ? <code>{active.server.username ? `${active.server.username}@` : ''}{active.server.host}:{active.server.port}</code> : <code>{active.localMode === 'clean' ? 'shell · no profile' : 'login shell'}</code>}</div><div>{active.server?.transport === 'mosh' && <button className="reconnect" onClick={() => openTab(active.server, 'ssh')}>{tr("改用 SSH")}</button>}{active.server && <span className="network-badge" title={tr("运行状态不代表登录成功；Mosh 的网络状态请查看终端内提示")}>{active.server.transport === 'mosh' ? `Mosh · ${active.server.prediction === 'always' ? tr("始终预测") : active.server.prediction === 'never' ? tr("关闭预测") : tr("自适应预测")}` : tr(networkLabels[active.server.networkProfile || 'balanced'])}{active.server.compression ? tr(" · SSH 压缩") : ''}</span>}{active.state === 'retrying' && <button className="reconnect" onClick={() => api.pauseRetry(activeId).catch((e) => setError(e.message))}>{tr("暂停重连")}</button>}{active.server?.persistent && <span className="persist-badge"><Icon name="shield" size={13}/>{tr("tmux 持久会话")}</span>}{['exited', 'error', 'retrying', 'paused'].includes(active.state) && <button className="reconnect" onClick={() => api.reconnect(activeId).catch((e) => setError(e.message))}><Icon name="refresh" size={14}/>{tr("重新连接")}</button>}</div></div>}
+      <div className="terminal-area">{tabs.map((tab) => tab.purpose ? <InstallationPane onManage={() => setComponentsOpen('tmux')} onConnect={connectPersistent} key={tab.id} api={api} tab={tab} active={tab.id === activeId} onStatus={onStatus}/> : <TerminalPane onCleanShell={() => openTab(null, undefined, 'clean')} key={tab.id} tab={tab} active={tab.id === activeId} onStatus={onStatus} appearance={appearance}/>)}{!tabs.length && <div className="welcome"><div className="welcome-topline"><span className="small-line"/>{tr("你的下一段会话，从这里开始")}</div><div className="welcome-icon"><Icon name="terminal" size={38}/></div><h1>{tr("每一次连接，都能继续。")}</h1><p className="welcome-subtitle">{tr("本地开发，远程运维。")}<br/>{tr("把你的服务器与工作会话，放在同一个地方。")}</p><div className="welcome-actions"><button className="primary" onClick={() => setDialog({})}><Icon name="plus" size={17}/>{tr("添加第一台服务器")}<Icon name="arrow" size={16}/></button><button className="secondary" onClick={() => openTab()}><Icon name="terminal" size={17}/>{tr("打开本地终端")}</button></div><div className="feature-grid"><div><span className="feature-number">01</span><h3>{tr("一键进入工作状态")}</h3><p>{tr("保存 SSH 连接，点击名称")}<br/>{tr("即可在独立标签页中打开。")}</p></div><div><span className="feature-number">02</span><h3>{tr("断线，不中断进程")}</h3><p>{tr("自动重连搭配远程 tmux，")}<br/>{tr("网络恢复后接回原有会话。")}</p></div><div><span className="feature-number">03</span><h3>{tr("专注终端性能")}</h3><p>{tr("原生 PTY，批量传输输出，")}<br/>{tr("有界缓存与输出背压。")}</p></div></div><div className="tmux-tip"><Icon name="shield" size={16}/><span>{tr("持久会话依赖远程组件，可在「组件」中安装 ")}<code>tmux</code>{tr("。")}</span></div></div>}</div>
       <footer className="statusbar"><div><span className="dot green"/>Harbor <span className="status-separator">/</span> {tabs.length === 1 ? tr("1 个会话") : tr("{0} 个会话", [tabs.length])}</div><div>{active?.server?.persistent ? <><span>{tr("关闭标签页会分离 tmux；远程进程继续运行")}</span><span className="status-separator">·</span><button onClick={async () => { try { await api.copyText('tmux list-sessions'); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) { setError(e.message); } }}>{copied ? tr("已复制命令") : tr("复制会话查看命令")}</button></> : <><span>UTF-8</span><span className="status-separator">·</span><span>xterm-256color</span></>}</div></footer>
     </main>
     {serverMenu && !security?.locked && <ServerActionsMenu {...serverMenu} onClose={() => setServerMenu(null)} onAction={serverAction}/>}

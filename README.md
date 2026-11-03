@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-Current version: **0.1.7 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
+Current version: **0.1.8 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
 
 ![Harbor Terminal open-source SSH client with saved server management, bilingual controls and a desktop terminal workspace](docs/images/harbor-terminal-en.png)
 
@@ -131,6 +131,8 @@ Open **Appearance**, select a preset and adjust font, font size, line height, le
 
 New local tabs enable shell styling by default; turn it off in Appearance. zsh/bash use blue directories, cyan links and green executables. GNU ls also distinguishes archive and image extensions; macOS ls colors by file type. zsh includes BSD-3-Clause licensed zsh-syntax-highlighting 0.8.0 and preserves an already-loaded user plugin; PowerShell uses PSReadLine when available. ANSI colors follow the selected terminal theme without rewriting arbitrary command output. Styling replaces the local prompt but never edits user shell configuration files; disable it if you prefer your own prompt framework. Remote shells retain their server configuration.
 
+Local tabs show a waiting hint until the first output arrives. After five seconds without output, Harbor offers a temporary terminal that skips user shell startup files. This opens a separate tab and leaves the original shell running. The terminal toolbar also offers this option after output starts. It does not reset your environment or repair configuration automatically; development tools may be missing from PATH. Receiving output is not proof that shell initialization has completed.
+
 Pasted text can look selected in remote Bash because Readline highlights its active region. To hide only this highlight in the current Bash shell, run `bind 'set enable-active-region off'` (if supported). For future shells, add `set enable-active-region off` inside a `$if Bash` / `$endif` block in the remote account's `~/.inputrc`. Keep `enable-bracketed-paste` enabled. Existing tmux shells keep their current settings until reloaded; reconnecting alone does not restart them.
 
 
@@ -189,7 +191,7 @@ External PEM files are not imported or re-encrypted. Passwords, OTPs and private
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [Development, architecture and validation notes (Chinese)](docs/DEVELOPMENT_CN.md)
-- [v0.1.7 release notes](docs/releases/v0.1.7.md)
+- [v0.1.8 release notes](docs/releases/v0.1.8.md)
 - [v0.1.6 release notes](docs/releases/v0.1.6.md)
 - [v0.1.5 release notes](docs/releases/v0.1.5.md)
 - [Shared UI and backend translations](shared/messages.json)
