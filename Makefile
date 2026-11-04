@@ -3,7 +3,7 @@ NPM ?= npm
 ARCH ?= native
 OUT ?= release
 
-.PHONY: help install dev start build test test-desktop test-security test-language test-terminal test-components test-quit test-servers test-pty test-scroll test-layout test-startup test-all pack pack-mac pack-win pack-linux
+.PHONY: help install dev start build test test-desktop test-security test-language test-terminal test-components test-quit test-servers test-pty test-scroll test-layout test-startup test-pty-resources test-reconnect test-reorder test-all pack pack-mac pack-win pack-linux
 
 help: ## Show all commands and descriptions
 	@node scripts/make-help.cjs
@@ -56,6 +56,15 @@ test-layout: ## Test terminal alignment after resize, input and full-screen apps
 test-startup: ## Test slow shell startup and temporary terminal recovery
 	$(NPM) run test:startup
 
+test-pty-resources: ## Test macOS PTY cleanup across repeated starts, failures and tab closes
+	$(NPM) run test:pty-resources
+
+test-reconnect: ## Test repeated SSH failures, network recovery and authentication errors
+	$(NPM) run test:reconnect
+
+test-reorder: ## Test server and tab dragging, persistence and live session preservation
+	$(NPM) run test:reorder
+
 test-all: ## Run all tests sequentially (safe with make -j)
 	$(NPM) test
 	$(NPM) run test:desktop
@@ -69,6 +78,9 @@ test-all: ## Run all tests sequentially (safe with make -j)
 	$(NPM) run test:scroll
 	$(NPM) run test:layout
 	$(NPM) run test:startup
+	$(NPM) run test:pty-resources
+	$(NPM) run test:reconnect
+	$(NPM) run test:reorder
 
 pack: ## Package for the current OS; ARCH=native|arm64|x64 OUT=release
 	node scripts/package.cjs native "$(ARCH)" "$(OUT)"

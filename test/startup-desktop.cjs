@@ -7,14 +7,15 @@ const assert = require('node:assert/strict');
   if (process.platform !== 'darwin') { console.log('SKIP macOS zsh startup fixture'); return; }
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'harbor-startup-ui-'));
   const home = path.join(root, 'home'); await fs.mkdir(home);
-  const rc = 'while [[ ! -e "$HOME/allow-start" ]]; do sleep 0.1; done\nexport HARBOR_RC_LOADED=yes\nprintf "NORMAL_READY\\n"\n';
+  const rc = 'while [[ ! -e "$ZDOTDIR/allow-start" ]]; do sleep 0.1; done\nexport HARBOR_RC_LOADED=yes\nprintf "NORMAL_READY\\n"\n';
   await fs.writeFile(path.join(home, '.zshrc'), rc);
   let app;
   try {
-    app = await electron.launch({ ...(process.env.HARBOR_EXECUTABLE ? { executablePath: process.env.HARBOR_EXECUTABLE } : {}), args: [...(process.env.HARBOR_EXECUTABLE ? [] : ['.']), `--user-data-dir=${path.join(root, 'profile')}`], env: { ...process.env, HOME: home, ZDOTDIR: home, SHELL: '/bin/zsh', HARBOR_DEV: '0' } });
+    app = await electron.launch({ ...(process.env.HARBOR_EXECUTABLE ? { executablePath: process.env.HARBOR_EXECUTABLE } : {}), args: [...(process.env.HARBOR_EXECUTABLE ? [] : ['.']), `--user-data-dir=${path.join(root, 'profile')}`], env: { ...process.env, ZDOTDIR: home, SHELL: '/bin/zsh', HARBOR_DEV: '0' } });
     const page = await app.firstWindow(); page.setDefaultTimeout(12000);
-    await app.evaluate(() => {
-      const pty = process.mainModule.require('node-pty');
+    await page.getByRole('button', { name: 'Open local terminal', exact: true }).waitFor();
+    await app.evaluate(({ app }) => {
+      const pty = process.mainModule.require('node:module').createRequire(app.getAppPath() + '/package.json')('node-pty');
       const spawn = pty.spawn; global.startupPids = [];
       pty.spawn = (...args) => { const child = spawn(...args); global.startupPids.push(child.pid); return child; };
     });

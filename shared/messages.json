@@ -1,4 +1,6 @@
 {
+  "向左滚动标签页": "Scroll tabs left",
+  "向右滚动标签页": "Scroll tabs right",
   "正在启动": "Starting",
   "正在连接": "Connecting",
   "SSH 运行中": "SSH running",
@@ -476,5 +478,9 @@
   "打开临时终端": "Open temporary terminal",
   "继续等待": "Keep waiting",
   "临时终端：未加载用户启动配置，部分开发工具可能不在 PATH 中。": "Temporary terminal: user startup files were skipped; some development tools may be missing from PATH.",
-  "在新标签页跳过用户 Shell 启动配置": "Skip user shell startup files in a new tab"
+  "在新标签页跳过用户 Shell 启动配置": "Skip user shell startup files in a new tab",
+  "系统终端资源不足，请关闭不用的终端。若仍无法启动，请保存工作后完全退出并重新打开 Harbor。": "System terminal resources are unavailable. Close unused terminals. If this persists, save your work, fully quit Harbor and reopen it.",
+  "SSH 认证失败，请检查用户名、私钥或密码后重新连接。已停止自动重试。": "SSH authentication failed. Check the username, private key or password, then reconnect. Automatic retries stopped.",
+  "SSH 主机密钥验证失败，请核实服务器身份后重新连接。已停止自动重试。": "SSH host key verification failed. Verify the server identity before reconnecting. Automatic retries stopped.",
+  "无效的排序操作": "Invalid reorder operation"
 }

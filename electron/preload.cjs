@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('harbor', {
   },
   listServers: () => ipcRenderer.invoke('servers:list'),
   saveServer: (server) => ipcRenderer.invoke('servers:save', server),
+  moveServer: (input) => ipcRenderer.invoke('servers:move', input),
   deleteServer: (id) => ipcRenderer.invoke('servers:delete', id),
   chooseKey: (kind) => ipcRenderer.invoke('key:choose', kind),
   openSession: (options) => ipcRenderer.invoke('session:open', options),

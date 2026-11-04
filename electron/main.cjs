@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, powerMonitor, safeStorage, systemPr
 const pty = require('node-pty');
 const { resizeSession } = require('./pty-lifecycle.cjs');
 const { ProtectedClipboard, defaults: privacyDefaults, validate: validatePrivacy } = require('./protected-clipboard.cjs');
+const { sshFailure } = require('./ssh-failure.cjs');
 const { cleanShell } = require('./clean-shell.cjs');
 const { styledShell } = require('./shell-style.cjs');
 const fs = require('node:fs/promises');
@@ -70,6 +71,7 @@ function launch(s) {
   s.retryAt = null;
   s.stopped = false;
   s.pending = 0;
+  s.sshDiagnostic = "";
   s.lastFlushAt = -Infinity;
   const generation = ++s.generation;
   status(s, s.purpose ? 'installing' : s.serverBox ? 'connecting' : 'local');
@@ -82,7 +84,9 @@ function launch(s) {
       cwd: os.homedir(), env: { ...process.env, ...commandEnv, PATH: [path.dirname(executable), process.env.PATH, '/usr/bin', '/bin'].filter(Boolean).join(path.delimiter), TERM: 'xterm-256color', COLORTERM: 'truecolor' },
     });
   } catch (error) {
-    status(s, 'error', { message: error.message });
+    const exhausted = /PTY start failed:.*\(errno=(6|23|24|35)\)/.test(error.message);
+    const message = exhausted ? tr('系统终端资源不足，请关闭不用的终端。若仍无法启动，请保存工作后完全退出并重新打开 Harbor。') + '\n' + error.message : error.message;
+    status(s, 'error', { message });
     return;
   }
   s.startedAt = Date.now();
@@ -91,6 +95,7 @@ function launch(s) {
   s.pty.onData((data) => {
     if (s.generation !== generation) return;
     if (s.state === 'connecting') status(s, s.transport === 'mosh' ? 'mosh' : 'running');
+    if (s.serverBox && s.transport === 'ssh') s.sshDiagnostic = (s.sshDiagnostic + data).slice(-8192);
     s.output += data;
     s.pending += data.length;
     // Deliver sparse interactive updates immediately; batch sustained output
@@ -106,6 +111,8 @@ function launch(s) {
     flush(s);
     s.pty = null;
     if (Date.now() - s.startedAt > 60000) s.attempt = 0;
+    const failure = !s.purpose && s.serverBox && s.transport === 'ssh' && exitCode === 255 ? sshFailure(s.sshDiagnostic) : null;
+    if (failure) { status(s, 'error', { message: tr(failure), exitCode }); return; }
     if (!s.purpose && canRetry(s.serverBox ? { autoReconnect: s.autoReconnect, transport: s.transport } : null, exitCode, s.stopped)) {
       const delay = retryDelay(s.attempt++);
       s.retryAt = Date.now() + delay;
@@ -234,6 +241,12 @@ function registerIPC() {
     assertAccess();
     const s = validateServer(input);
     return vault.mutate((list) => list.some((item) => item.id === s.id) ? list.map((item) => item.id === s.id ? s : item) : [...list, s]);
+  });
+  handle('servers:move', async input => {
+    const { moveItem } = await import('../shared/order.mjs');
+    assertAccess();
+    if (!input || typeof input.id !== 'string' || typeof input.targetId !== 'string' || typeof input.after !== 'boolean') throw new Error(tr('无效的排序操作'));
+    return vault.mutate(list => moveItem(list, input.id, input.targetId, input.after));
   });
   handle('servers:delete', (id) => { assertAccess(); return vault.mutate((list) => list.filter((s) => s.id !== id)); });
   handle('key:choose', async (kind) => {

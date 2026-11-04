@@ -163,3 +163,17 @@ test('failed unlock leaves existing runtime snapshots usable but cannot expose v
   const key = runtime.key;
   vault.dispose(); assert.ok(key.every(b => b === 0));
 });
+
+test('state checks and password-only security never access the macOS keychain', async t => {
+  let probes = 0;
+  const { vault } = await fixture(t, {
+    platform: 'darwin', safeStorage: { isEncryptionAvailable: () => { probes++; return false; }, encryptString: () => { throw new Error('must not encrypt'); } },
+    systemPreferences: { canPromptTouchID: () => true, promptTouchID: async () => { throw new Error('must not prompt'); } },
+  });
+  for (let i = 0; i < 20; i++) assert.equal(vault.state().touchAvailable, true);
+  await vault.enable(secret, { touchEnabled: false });
+  vault.lock(); await vault.unlock('password', secret);
+  assert.equal(probes, 0);
+  await assert.rejects(vault.configure(secret, { touchEnabled: true }), /无法使用 Touch ID/);
+  assert.equal(probes, 1); assert.equal(vault.state().touchEnabled, false);
+});

@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
     await fs.writeFile(path.join(profile, 'sample.txt'), 'Harbor layout fixture\n'.repeat(300));
     app = await electron.launch({
       ...(process.env.HARBOR_EXECUTABLE ? { executablePath: process.env.HARBOR_EXECUTABLE } : {}),
-      args: [...(process.env.HARBOR_EXECUTABLE ? [] : ['.']), `--user-data-dir=${profile}`], env: { ...process.env, HARBOR_DEV: '0', HOME: profile, ZDOTDIR: profile, ...(process.platform === 'darwin' ? { SHELL: '/bin/zsh' } : {}) }
+      args: [...(process.env.HARBOR_EXECUTABLE ? [] : ['.']), `--user-data-dir=${profile}`], env: { ...process.env, HARBOR_DEV: '0', ZDOTDIR: profile, ...(process.platform === 'darwin' ? { SHELL: '/bin/zsh' } : {}) }
     });
     const page = await app.firstWindow(); page.setDefaultTimeout(10000);
     const errors = []; page.on('pageerror', e => errors.push(e.message));

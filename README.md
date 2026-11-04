@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-Current version: **0.1.8 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
+Current version: **0.1.9 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
 
 ![Harbor Terminal open-source SSH client with saved server management, bilingual controls and a desktop terminal workspace](docs/images/harbor-terminal-en.png)
 
@@ -191,6 +191,7 @@ External PEM files are not imported or re-encrypted. Passwords, OTPs and private
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [Development, architecture and validation notes (Chinese)](docs/DEVELOPMENT_CN.md)
+- [v0.1.9 release notes](docs/releases/v0.1.9.md)
 - [v0.1.8 release notes](docs/releases/v0.1.8.md)
 - [v0.1.6 release notes](docs/releases/v0.1.6.md)
 - [v0.1.5 release notes](docs/releases/v0.1.5.md)
@@ -231,6 +232,12 @@ make pack-win ARCH=x64      # Windows NSIS + portable EXE
 make pack-linux ARCH=x64    # Linux AppImage + deb
 make pack OUT=release/demo # Choose an output directory
 ```
+
+macOS source builds require Xcode Command Line Tools. Installation and packaging rebuild the pinned native PTY module with Harbor’s descriptor-cleanup fix. Each signed macOS build must pass `make test-pty-resources` against the packaged application before archives are generated (600 terminal exits, 100 failed starts and 20 UI tab closes). This prevents repeated sessions from exhausting system PTY resources.
+
+SSH network failures retry with backoff. Explicit OpenSSH authentication and host-key verification failures stop automatic retries until you correct the credentials or verify the host. `make test-reconnect` exercises repeated SSH failures and recovery. Security-status checks do not access Keychain; OS storage is checked only for explicit Touch ID operations.
+
+Drag server rows vertically to reorder saved connections, or drag terminal tabs horizontally to rearrange them. Rows move as you drag; releasing beyond the list places the item at the nearest end, and Escape cancels the preview. Server order persists across restarts, including encrypted profiles; moving tabs preserves the running sessions and the active selection. Clicking a server still selects its most recently created tab, regardless of tab position. Test with `make test-reorder`.
 
 `ARCH` defaults to `native`; `arm64` and `x64` are also supported. Run each packaging command on its target OS. Cross-architecture builds require the target native-module toolchain and subsequent device testing. Packaging never automatically publishes to GitHub. Individual test commands are `make test`, `make test-desktop`, `make test-security` and `make test-language`. The existing npm commands remain available:
 

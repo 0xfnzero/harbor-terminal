@@ -1,0 +1,127 @@
+const { _electron: electron } = require('playwright');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+(async () => {
+  const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'harbor-reorder-'));
+  let app;
+  const start = async () => {
+    app = await electron.launch({ ...(process.env.HARBOR_EXECUTABLE ? { executablePath: process.env.HARBOR_EXECUTABLE } : {}), args: [...(process.env.HARBOR_EXECUTABLE ? [] : ['.']), `--user-data-dir=${profile}`], env: { ...process.env, ZDOTDIR: profile, HARBOR_DEV: '0' } });
+    const page = await app.firstWindow(); page.setDefaultTimeout(10000);
+    await page.getByRole('combobox', { name: 'Language / 语言' }).waitFor();
+    return page;
+  };
+  try {
+    let page = await start();
+    await page.evaluate(async () => {
+      for (const [id, name] of [['a', 'Group A'], ['h', 'Hidden'], ['b', 'Group B'], ['c', 'Group C']]) await window.harbor.saveServer({ id, name, host: '127.0.0.1', port: 9, persistent: false, autoReconnect: false });
+    });
+    await page.reload();
+    const order = () => page.locator('.server-item').evaluateAll(rows => rows.map(row => row.dataset.sortId));
+    const drag = async (source, target, after, axis) => {
+      await source.hover();
+      const from = await source.boundingBox(), box = await target.boundingBox();
+      await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2); await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 12 }); await page.mouse.up();
+    };
+    await page.locator('.server-item[data-sort-id=a]').waitFor();
+    const first = await page.locator('[data-sort-id=a] .server-open').boundingBox();
+    const second = await page.locator('.server-item[data-sort-id=h]').boundingBox();
+    const sx = first.x + first.width / 2, sy = first.y + first.height / 2;
+    await page.mouse.move(sx, sy); await page.mouse.down();
+    await page.mouse.move(sx, sy + (second.y + second.height / 2 - sy) * .5, { steps: 10 });
+    await page.waitForFunction(() => [...document.querySelectorAll('.server-list > .server-item')].map(e => e.dataset.sortId).join() === 'h,a,b,c');
+    assert.deepEqual(await page.evaluate(async () => (await window.harbor.listServers()).map(s => s.id)), ['a','h','b','c'], 'live preview must not write storage');
+    const ghost = await page.locator('.sort-ghost').boundingBox();
+    assert.ok(ghost && Math.abs(ghost.y - (first.y - 1 + (second.y + second.height / 2 - sy) * .5)) < 3, 'floating row follows the pointer instead of jumping to its slot');
+    assert.equal(await page.locator('.sort-ghost').getAttribute('aria-hidden'), 'true');
+    await page.screenshot({ path: '/tmp/harbor-drag-feedback.png' });
+
+    await page.mouse.up();
+    await page.waitForFunction(async () => (await window.harbor.listServers()).map(s => s.id).join() === 'h,a,b,c');
+    await page.waitForTimeout(220);
+    await drag(page.locator('[data-sort-id=a] .server-open'), page.locator('.server-item[data-sort-id=h]'), false, 'y');
+    await page.waitForFunction(async () => (await window.harbor.listServers()).map(s => s.id).join() === 'a,h,b,c');
+    await page.waitForFunction(() => [...document.querySelectorAll('.server-list > .server-item')].map(e => e.dataset.sortId).join() === 'a,h,b,c');
+    await page.locator('[data-sort-id=a] .server-open').hover();
+    const source = await page.locator('[data-sort-id=a] .server-open').boundingBox();
+    const list = await page.locator('.server-list').boundingBox();
+    await page.mouse.move(source.x + 30, source.y + source.height / 2); await page.mouse.down();
+    await page.mouse.move(source.x + 30, list.y + list.height + 40, { steps: 15 }); await page.mouse.up();
+    await page.waitForFunction(() => [...document.querySelectorAll('.server-list > .server-item')].map(e => e.dataset.sortId).join() === 'h,b,c,a');
+    assert.equal(await page.getByRole('tab').count(), 0, 'drag must not connect');
+    const cancelSource = await page.locator('[data-sort-id=a] .server-open').boundingBox();
+    await page.mouse.move(cancelSource.x + 30, cancelSource.y + cancelSource.height / 2); await page.mouse.down();
+    await page.mouse.move(cancelSource.x + 30, list.y - 30, { steps: 12 });
+    await page.keyboard.press('Escape'); await page.mouse.up();
+    assert.deepEqual(await order(), ['h','b','c','a'], 'Escape restores original order');
+    assert.equal(await page.locator('.sort-ghost').count(), 0, 'cancel removes floating item');
+    assert.equal(await page.locator('body.sorting-active').count(), 0);
+    assert.deepEqual(await page.evaluate(async () => (await window.harbor.listServers()).map(s => s.id)), ['h','b','c','a']);
+    await page.getByRole('textbox', { name: 'Search servers', exact: true }).fill('Group');
+    await drag(page.locator('[data-sort-id=a] .server-open'), page.locator('.server-item[data-sort-id=b]'), false, 'y');
+    await page.waitForFunction(() => [...document.querySelectorAll('.server-list > .server-item')].map(e => e.dataset.sortId).join() === 'a,b,c');
+    await page.getByRole('textbox', { name: 'Search servers', exact: true }).fill('');
+    assert.deepEqual(await order(), ['h','a','b','c'], 'filtered drag preserves hidden rows');
+    await page.reload(); await page.locator('.server-item[data-sort-id=h]').waitFor();
+    assert.deepEqual(await order(), ['h','a','b','c']);
+    await page.evaluate(() => window.harbor.enableSecurity({ password: 'reorder-test-password', touchEnabled: false }));
+    await drag(page.locator('[data-sort-id=c] .server-open'), page.locator('.server-item[data-sort-id=h]'), false, 'y');
+    await page.waitForFunction(() => document.querySelector('.server-list > .server-item').dataset.sortId === 'c');
+    assert.ok(!(await fs.readFile(path.join(profile, 'servers.json'), 'utf8')).includes('Group A'));
+    await page.evaluate(() => window.harbor.lock());
+    assert.equal(await page.evaluate(async () => { try { await window.harbor.moveServer({ id:'a', targetId:'b', after:true }); return false; } catch { return true; } }), true);
+    await app.close(); app = null; page = await start();
+    await page.evaluate(() => window.harbor.unlock({ method: 'password', password: 'reorder-test-password' }));
+    await page.locator('.server-item[data-sort-id=c]').waitFor();
+    assert.deepEqual(await order(), ['c','h','a','b'], 'encrypted server order persists across restart');
+    // Keep real PTYs alive without contacting a remote host, and count launches.
+    await app.evaluate(({ app }) => {
+      const pty = process.mainModule.require('node:module').createRequire(app.getAppPath() + '/package.json')('node-pty');
+      const spawn = pty.spawn; global.reorderSpawns = 0;
+      pty.spawn = (_file, _args, opts) => { global.reorderSpawns++; return spawn('/bin/sh', ['-i'], opts); };
+    });
+    await page.evaluate(() => { window.reorderOutput = ''; window.harbor.onEvent(e => { if(e.type === 'data') window.reorderOutput += e.data; }); });
+    for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'New local terminal', exact: true }).click();
+    const ids = await page.locator('.tab').evaluateAll(rows => rows.map(row => row.dataset.sortId));
+    const lastTab = await page.locator(`.tab[data-sort-id="${ids[2]}"] [role=tab]`).boundingBox();
+    const middleTab = await page.locator(`.tab[data-sort-id="${ids[1]}"]`).boundingBox();
+    const tx = lastTab.x + lastTab.width / 2, ty = lastTab.y + lastTab.height / 2;
+    await page.mouse.move(tx, ty); await page.mouse.down();
+    await page.mouse.move(tx + (middleTab.x + middleTab.width / 2 - tx) * .5, ty, { steps: 12 });
+    await page.waitForFunction(id => document.querySelectorAll('.tabs > .tab')[1].dataset.sortId === id, ids[2]);
+    await page.keyboard.press('Escape'); await page.mouse.up();
+    assert.deepEqual(await page.locator('.tab').evaluateAll(rows => rows.map(row => row.dataset.sortId)), ids);
+    await page.mouse.move(tx, ty); await page.mouse.down();
+    const tabList = await page.locator('[role=tablist]').boundingBox();
+    await page.mouse.move(tabList.x - 45, ty, { steps: 15 }); await page.mouse.up();
+    await page.waitForFunction(expected => [...document.querySelectorAll('.tabs > .tab')].map(row => row.dataset.sortId).join() === expected.join(), [ids[2],ids[0],ids[1]]);
+    assert.deepEqual(await page.locator('.tab').evaluateAll(rows => rows.map(row => row.dataset.sortId)), [ids[2],ids[0],ids[1]]);
+    assert.equal(await page.locator('.tab.selected').getAttribute('data-sort-id'), ids[2]);
+    assert.equal(await app.evaluate(() => global.reorderSpawns), 3, 'drag does not recreate sessions');
+    const plus = await page.getByRole('button', { name: 'New local terminal', exact: true }).boundingBox();
+    const front = await page.locator(`.tab[data-sort-id="${ids[2]}"] [role=tab]`).boundingBox();
+    await page.mouse.move(front.x + front.width / 2, front.y + front.height / 2); await page.mouse.down();
+    await page.mouse.move(plus.x + plus.width + 5, plus.y + plus.height / 2, { steps: 15 }); await page.mouse.up();
+    await page.waitForFunction(id => [...document.querySelectorAll('.tabs > .tab')].at(-1).dataset.sortId === id, ids[2]);
+    assert.equal(await page.getByRole('tab').count(), 3, 'dropping past plus must not create a tab');
+    assert.equal(await page.locator('.tab.selected').getAttribute('data-sort-id'), ids[2]);
+
+    await page.locator('.terminal-pane.active textarea').focus(); await page.keyboard.type("printf 'SORT_%s\\n' ALIVE"); await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.reorderOutput.includes('SORT_ALIVE'));
+    // Row selection must use creation order even after moving the newest tab left.
+    await page.locator('[data-sort-id=a] .server-open').click();
+    await page.locator('[data-sort-id=a] .server-open').hover();
+    await page.getByRole('button', { name: 'More actions · Group A' }).click();
+    await page.getByRole('menuitem', { name: 'New', exact:true }).click();
+    const remote = await page.getByRole('tab', { name:'Group A', exact:true }).evaluateAll(rows => rows.map(row => row.parentElement.dataset.sortId));
+    await drag(page.locator(`.tab[data-sort-id="${remote[1]}"] [role=tab]`), page.locator(`.tab[data-sort-id="${remote[0]}"]`), false, 'x');
+    await page.waitForTimeout(220);
+    await page.locator(`.tab[data-sort-id="${remote[0]}"] [role=tab]`).click();
+    await page.locator('[data-sort-id=a] .server-open').click();
+    assert.equal(await page.locator('.tab.selected').getAttribute('data-sort-id'), remote[1]);
+    assert.equal(await app.evaluate(() => global.reorderSpawns), 5);
+    console.log('PASS partial-distance live sorting, overshoot release, Escape cancellation, server/tab dragging, filtered lists, encrypted restart persistence, locked IPC rejection, live PTY preservation and latest-created selection');
+  } finally { if (app) await app.close(); await fs.rm(profile,{recursive:true,force:true}); }
+})().catch(e => { console.error(e); process.exitCode=1; });

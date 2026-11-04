@@ -80,8 +80,10 @@ class Vault {
       preferences(value.settings); this.doc = value;
     }
   }
+  // Capability rendering must not access Keychain: Electron may display a system
+  // prompt even from isEncryptionAvailable(). Probe storage only on explicit Touch ID actions.
   touchAvailable() {
-    try { return this.platform === 'darwin' && this.safeStorage?.isEncryptionAvailable() === true && this.systemPreferences?.canPromptTouchID() === true; } catch { return false; }
+    try { return this.platform === 'darwin' && typeof this.safeStorage?.encryptString === 'function' && this.systemPreferences?.canPromptTouchID() === true; } catch { return false; }
   }
   state() { return { enabled: !!this.doc, locked: !!this.doc && !this.memoryKey, touchAvailable: this.touchAvailable(), touchEnabled: !!this.doc?.touchWrap, idleMinutes: this.doc?.settings.idleMinutes ?? 30 }; }
   assertUnlocked() { if (!this.memoryKey) throw new Error(tr("请先解锁 Harbor")); }
@@ -134,7 +136,7 @@ class Vault {
     return this.summaries();
   }); }
   async makeTouch(key, id) {
-    if (!this.touchAvailable()) throw new Error(tr("当前设备无法使用 Touch ID，请使用应用锁屏密码"));
+    if (!this.touchAvailable() || !this.safeStorage.isEncryptionAvailable()) throw new Error(tr("当前设备无法使用 Touch ID，请使用应用锁屏密码"));
     await this.systemPreferences.promptTouchID(tr("启用 Harbor 指纹解锁"));
     return this.safeStorage.encryptString(JSON.stringify({ id, key: key.toString('base64') })).toString('base64');
   }
@@ -173,7 +175,7 @@ class Vault {
     let diskKey, staged;
     try {
       if (method === 'touch') {
-        if (!this.doc.touchWrap || !this.touchAvailable()) throw new Error(tr("Touch ID 不可用"));
+        if (!this.doc.touchWrap || !this.touchAvailable() || !this.safeStorage.isEncryptionAvailable()) throw new Error(tr("Touch ID 不可用"));
         await this.systemPreferences.promptTouchID(tr("解锁 Harbor 服务器与终端"));
         const wrapped = JSON.parse(this.safeStorage.decryptString(Buffer.from(this.doc.touchWrap, 'base64')));
         if (wrapped.id !== this.doc.id) throw new Error(tr("无效的指纹密钥"));

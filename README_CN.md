@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-当前版本：**0.1.8 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
+当前版本：**0.1.9 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
 
 ![Harbor Terminal 开源 SSH 客户端：服务器管理、中英文切换与终端工作空间](docs/images/harbor-terminal-zh.png)
 
@@ -191,6 +191,7 @@ Mosh 先用 SSH 认证，再使用 UDP。默认服务器端口为 **60042**，�
 - [English README](README.md)
 - [中文 README](README_CN.md)
 - [开发、架构与验证记录](docs/DEVELOPMENT_CN.md)
+- [v0.1.9 发布说明](docs/releases/v0.1.9.md)
 - [v0.1.8 发布说明](docs/releases/v0.1.8.md)
 - [v0.1.6 发布说明](docs/releases/v0.1.6.md)
 - [v0.1.5 发布说明](docs/releases/v0.1.5.md)
@@ -231,6 +232,12 @@ make pack-win ARCH=x64      # Windows NSIS + 便携 EXE
 make pack-linux ARCH=x64    # Linux AppImage + deb
 make pack OUT=release/demo # 自定义产物目录
 ```
+
+macOS 源码构建需要 Xcode Command Line Tools。安装依赖和打包时会重新编译固定版本的原生 PTY 模块，包含 Harbor 的资源释放修复。每次 macOS 签名完成后、生成压缩包前，都会对实际应用运行 `make test-pty-resources` 对应的检查（600 次终端退出、100 次启动失败、20 次界面标签关闭），避免反复创建会话耗尽系统伪终端资源。
+
+SSH 网络故障会退避重试；明确的认证失败和主机密钥验证失败会停止自动重试，需修正凭据或核实主机身份后再连接。`make test-reconnect` 验证持续失败和网络恢复。安全状态查询不访问钥匙串，仅在主动启用或使用 Touch ID 时检查系统存储。
+
+可上下拖动服务器列表调整连接顺序，也可左右拖动终端标签排序。拖动过程中实时换位，拖过列表边缘松手也能放到首尾，按 Esc 可撤销预览。服务器顺序会保存，启用加密后仍随加密配置持久化；拖动标签不会重启会话或改变当前选中项。点击服务器仍选择最近创建的标签，不受显示位置影响。可运行 `make test-reorder` 验证。
 
 `ARCH` 默认 `native`，可选择 `arm64` 或 `x64`。请在目标操作系统运行对应打包命令；跨架构构建需要目标架构的原生依赖工具链，构建成功后仍需实机验证。打包命令不会自动发布到 GitHub。`make test`、`make test-desktop`、`make test-security`、`make test-language` 可单独运行测试。以下 npm 命令也继续可用：
 
