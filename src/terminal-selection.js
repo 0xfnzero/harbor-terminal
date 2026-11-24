@@ -25,7 +25,14 @@ export function attachTerminalSelection(term, { enabled, onStart }) {
     stop(event);
   };
   const move = event => {
-    if (!drag || forwarding) return;
+    if (forwarding) return;
+    if (!drag) {
+      // All-motion reports are user input to xterm, which clears its selection
+      // before onData runs. Keep hover local while the user has selected text,
+      // including the trip across the terminal toward the Copy toolbar.
+      if (enabled() && term.hasSelection() && !event.buttons && host.contains(event.target) && term.modes.mouseTrackingMode !== 'none') stop(event);
+      return;
+    }
     if (!enabled() || drag.buffer !== term.buffer.active) { drag = null; return; }
     stop(event);
     if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 3) return;

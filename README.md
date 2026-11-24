@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-Current version: **0.1.12 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
+Current version: **0.1.13 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
 
 ![Harbor Terminal open-source SSH client with saved server management, bilingual controls and a desktop terminal workspace](docs/images/harbor-terminal-en.png)
 
@@ -137,7 +137,7 @@ Pasted text can look selected in remote Bash because Readline highlights its act
 
 
 - Copy / paste: macOS `Cmd+C` / `Cmd+V`; Windows/Linux `Ctrl+Shift+C` / `Ctrl+Shift+V`; `Shift+Insert` also pastes.
-- **Select text** is enabled by default: drag to make a local copyable selection even inside Claude Code, tmux, vi/Vim and other mouse-reporting applications. Use Copy, the context menu or the copy shortcut. Single clicks still reach the application; turn off **Select text** in the terminal toolbar when you need application mouse dragging, such as resizing tmux panes. Option-drag on macOS (Shift-drag on Windows/Linux) also forces local selection.
+- **Select text** is enabled by default: drag to make a local copyable selection even inside Claude Code, tmux, vi/Vim and other mouse-reporting applications. Use Copy, the context menu or the copy shortcut. Moving the pointer after selecting text preserves the local selection, including in applications that report every mouse movement. Single clicks still reach the application; turn off **Select text** in the terminal toolbar when you need application mouse dragging, such as resizing tmux panes. Option-drag on macOS (Shift-drag on Windows/Linux) also forces local selection.
 - Remote OSC 52 clipboard text, such as a tmux selection, is available through the same Copy actions. Remote output never writes the system clipboard automatically, and clipboard read requests are not answered. Background or locked sessions cannot supply a new copy selection.
 - `Ctrl+C` still interrupts commands. Right-click for copy, paste, select all, search, clear scrollback and scroll to bottom.
 - Search: `Cmd+F` / `Ctrl+Shift+F`; Enter for next, Shift+Enter for previous, Escape to close.

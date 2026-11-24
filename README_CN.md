@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-当前版本：**0.1.12 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
+当前版本：**0.1.13 Preview**。已在 macOS 本机验证；包含 Windows/Linux 适配和构建流程，但原生实机验收仍待完成。本项目是桌面应用，尚未发布为 npm 包。
 
 ![Harbor Terminal 开源 SSH 客户端：服务器管理、中英文切换与终端工作空间](docs/images/harbor-terminal-zh.png)
 
@@ -137,7 +137,7 @@ AWS 下载的 `.pem` 在「私钥 / PEM 文件」中选择。由 SSH CA 签发�
 
 
 - 复制 / 粘贴：macOS `⌘C` / `⌘V`；Windows/Linux `Ctrl+Shift+C` / `Ctrl+Shift+V`，另支持 `Shift+Insert` 粘贴。
-- 默认开启「选择文本」：在 Claude Code、tmux、vi/Vim 等启用鼠标模式的程序中，也可直接拖动创建本地选区，再使用复制按钮、右键菜单或复制快捷键。单击仍交给终端程序；需要拖动应用界面（如调整 tmux 分屏）时，可关闭工具栏的「选择文本」。macOS 也可按住 Option 拖选，Windows/Linux 按住 Shift 拖选。
+- 默认开启「选择文本」：在 Claude Code、tmux、vi/Vim 等启用鼠标模式的程序中，也可直接拖动创建本地选区，再使用复制按钮、右键菜单或复制快捷键。选中文本后移动鼠标会保留本地选区，包括启用全量鼠标移动报告的程序。单击仍交给终端程序；需要拖动应用界面（如调整 tmux 分屏）时，可关闭工具栏的「选择文本」。macOS 也可按住 Option 拖选，Windows/Linux 按住 Shift 拖选。
 - 远端通过 OSC 52 发送的文本（如 tmux 选区）也可使用同样的复制操作。远端输出不会自动改写系统剪贴板，不会响应读取剪贴板的请求；后台或锁定会话不能提供新的复制选区。
 - `Ctrl+C` 保留为中断命令；右键提供复制、粘贴、全选、搜索、清空滚动记录和滚动到底部。
 - 搜索：`⌘F` / `Ctrl+Shift+F`；Enter 下一个、Shift+Enter 上一个、Escape 关闭。
