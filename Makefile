@@ -3,7 +3,7 @@ NPM ?= npm
 ARCH ?= native
 OUT ?= release
 
-.PHONY: help install dev start build test test-desktop test-security test-language test-terminal test-components test-quit test-servers test-pty test-scroll test-layout test-startup test-pty-resources test-reconnect test-reorder test-all pack pack-mac pack-win pack-linux
+.PHONY: help install dev start build test test-desktop test-security test-language test-terminal test-components test-quit test-servers test-pty test-scroll test-layout test-startup test-pty-resources test-reconnect test-reorder test-selection test-tmux-scroll test-proxy test-all pack pack-mac pack-win pack-linux
 
 help: ## Show all commands and descriptions
 	@node scripts/make-help.cjs
@@ -65,6 +65,15 @@ test-reconnect: ## Test repeated SSH failures, network recovery and authenticati
 test-reorder: ## Test server and tab dragging, persistence and live session preservation
 	$(NPM) run test:reorder
 
+test-selection: ## Test copying in mouse-reporting terminal apps and Vim
+	$(NPM) run test:selection
+
+test-tmux-scroll: ## Test real tmux scrollback using local tmux or HARBOR_TMUX_TEST_SSH
+	$(NPM) run test:tmux-scroll
+
+test-proxy: ## Test direct-first SSH and automatic local proxy fallback
+	$(NPM) run test:proxy
+
 test-all: ## Run all tests sequentially (safe with make -j)
 	$(NPM) test
 	$(NPM) run test:desktop
@@ -81,6 +90,9 @@ test-all: ## Run all tests sequentially (safe with make -j)
 	$(NPM) run test:pty-resources
 	$(NPM) run test:reconnect
 	$(NPM) run test:reorder
+	$(NPM) run test:selection
+	$(NPM) run test:tmux-scroll
+	$(NPM) run test:proxy
 
 pack: ## Package for the current OS; ARCH=native|arm64|x64 OUT=release
 	node scripts/package.cjs native "$(ARCH)" "$(OUT)"

@@ -64,7 +64,11 @@ function sshArgs(server, sessionName) {
 function remoteCommand(sessionName) {
   if (!/^harbor-[a-f0-9-]+$/.test(sessionName)) throw new Error(tr("无效的远程会话标识"));
   const message = quote(tr('请在「组件」中安装服务器端 tmux，或关闭此连接的持久会话选项。'));
-  return `if command -v tmux >/dev/null 2>&1; then exec tmux new-session -A -s ${quote(sessionName)}; else printf '\\r\\n[Harbor] %s\\r\\n' ${message}; exit 69; fi`;
+  const target = quote(sessionName);
+  const history = quote(`set-option -t ${target} history-limit 50000`);
+  // tmux owns scrollback in its alternate screen. Configure only this Harbor
+  // session, including on reattach, and retain any larger user history limit.
+  return `if command -v tmux >/dev/null 2>&1; then exec tmux new-session -A -s ${target} \\; set-option -t ${target} mouse on \\; if-shell -t ${target} -F '#{<:#{history-limit},50000}' ${history}; else printf '\\r\\n[Harbor] %s\\r\\n' ${message}; exit 69; fi`;
 }
 
 function moshArgs(server, sessionName, clientPath, sshExecutable = '/usr/bin/ssh') {

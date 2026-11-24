@@ -39,7 +39,7 @@
     <a href="https://discord.gg/vuazbGkqQE">Discord</a>
 </p>
 
-Current version: **0.1.9 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
+Current version: **0.1.12 Preview**. macOS has been tested locally. Windows/Linux adapters and local build commands are included, but native acceptance remains pending. This project is a desktop app, not a published npm package.
 
 ![Harbor Terminal open-source SSH client with saved server management, bilingual controls and a desktop terminal workspace](docs/images/harbor-terminal-en.png)
 
@@ -137,6 +137,8 @@ Pasted text can look selected in remote Bash because Readline highlights its act
 
 
 - Copy / paste: macOS `Cmd+C` / `Cmd+V`; Windows/Linux `Ctrl+Shift+C` / `Ctrl+Shift+V`; `Shift+Insert` also pastes.
+- **Select text** is enabled by default: drag to make a local copyable selection even inside Claude Code, tmux, vi/Vim and other mouse-reporting applications. Use Copy, the context menu or the copy shortcut. Single clicks still reach the application; turn off **Select text** in the terminal toolbar when you need application mouse dragging, such as resizing tmux panes. Option-drag on macOS (Shift-drag on Windows/Linux) also forces local selection.
+- Remote OSC 52 clipboard text, such as a tmux selection, is available through the same Copy actions. Remote output never writes the system clipboard automatically, and clipboard read requests are not answered. Background or locked sessions cannot supply a new copy selection.
 - `Ctrl+C` still interrupts commands. Right-click for copy, paste, select all, search, clear scrollback and scroll to bottom.
 - Search: `Cmd+F` / `Ctrl+Shift+F`; Enter for next, Shift+Enter for previous, Escape to close.
 - Select the terminal buffer: `Cmd+A` / `Ctrl+Shift+A`; clear scrollback: `Cmd+K` / `Ctrl+Shift+K` (does not stop remote tasks).
@@ -161,6 +163,10 @@ Copy and paste use the normal system clipboard and interoperate with other apps.
 SSH retries abnormal transport/authentication exits with delays of 1, 2, 4, 8, 16 and then 30 seconds. Balanced, unstable-network and fast-recovery profiles adjust keepalive detection and connection timeouts. Detection times are approximate; authentication may require user input after reconnect.
 
 The same tab reuses its remote tmux session identifier. Closing a tab detaches its client; persistent remote tasks continue. Clicking a server reuses its newest open terminal tab. Choosing **New**, clicking after all of its tabs have closed, or restarting Harbor creates a new tab/session; attach older tmux sessions manually when needed. Server restarts or terminated remote tasks cannot be recovered by reconnecting alone.
+
+Harbor enables mouse scrolling and requests at least 50,000 history lines for its own tmux session on every connection and reattach. A larger existing limit is preserved, and global tmux settings and unrelated sessions are left alone. Scroll up after `cat` to enter tmux history; Escape returns to the shell. Full-screen applications retain their own mouse scrolling. Lines already discarded by an earlier history limit cannot be recovered. Run `make test-tmux-scroll` with a local tmux installation, or set `HARBOR_TMUX_TEST_SSH=user@host` to run the isolated 6,000-line fixture over SSH.
+
+Harbor SSH connections try the direct route first, then automatically discover loopback SOCKS5/HTTP CONNECT proxies from proxy environment variables, macOS/Windows system settings, GNOME manual proxy settings and common local proxy ports. A proxy must answer its protocol handshake before use; no per-server proxy field is needed. SSH handshake stalls are bounded, but password/passphrase and host identity prompts wait for the user. Authentication and host trust failures stop switching. Each new connection/manual reconnect starts direct again. Existing explicit SSH jump hosts/custom proxy commands are respected; local `nc -X 5` SOCKS settings become automatic fallback candidates. This applies to Harbor SSH tabs; commands typed inside a local shell retain that shell’s SSH configuration. Mosh UDP is not tunneled through TCP proxies. PAC scripts and proxies requiring authentication are not evaluated. Keep your proxy application running when a fallback route is needed. Test with `make test-proxy`.
 
 ### 📡 Mosh components and ports
 

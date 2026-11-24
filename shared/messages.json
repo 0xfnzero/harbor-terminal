@@ -1,4 +1,6 @@
 {
+  "选择文本": "Select text",
+  "开启时拖动选择文本；关闭后将拖动交给终端程序": "When enabled, drag to select text. Turn off to send drags to the terminal application.",
   "向左滚动标签页": "Scroll tabs left",
   "向右滚动标签页": "Scroll tabs right",
   "正在启动": "Starting",
@@ -482,5 +484,9 @@
   "系统终端资源不足，请关闭不用的终端。若仍无法启动，请保存工作后完全退出并重新打开 Harbor。": "System terminal resources are unavailable. Close unused terminals. If this persists, save your work, fully quit Harbor and reopen it.",
   "SSH 认证失败，请检查用户名、私钥或密码后重新连接。已停止自动重试。": "SSH authentication failed. Check the username, private key or password, then reconnect. Automatic retries stopped.",
   "SSH 主机密钥验证失败，请核实服务器身份后重新连接。已停止自动重试。": "SSH host key verification failed. Verify the server identity before reconnecting. Automatic retries stopped.",
-  "无效的排序操作": "Invalid reorder operation"
+  "无效的排序操作": "Invalid reorder operation",
+  "直连失败，正在自动检测本机代理…": "Direct connection failed. Detecting local proxies…",
+  "代理连接失败，正在尝试其他可用路径…": "Proxy connection failed. Trying another available route…",
+  "正在通过本机代理连接：{0}": "Connecting through local proxy: {0}",
+  "未找到可用的本机代理路径。": "No usable local proxy route found."
 }

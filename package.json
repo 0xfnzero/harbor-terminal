@@ -1,6 +1,6 @@
 {
   "name": "harbor-terminal",
-  "version": "0.1.9",
+  "version": "0.1.12",
   "description": "Open-source SSH client and terminal emulator with tabs, auto-reconnect, Mosh, tmux and encrypted server profiles.",
   "main": "electron/main.cjs",
   "scripts": {
@@ -25,7 +25,10 @@
     "test:servers": "npm run build && node test/server-actions-desktop.cjs",
     "test:pty-resources": "npm run build && node test/pty-resources-desktop.cjs",
     "test:reconnect": "npm run build && node test/reconnect-desktop.cjs",
-    "test:reorder": "npm run build && node test/reorder-desktop.cjs"
+    "test:reorder": "npm run build && node test/reorder-desktop.cjs",
+    "test:selection": "npm run build && node test/selection-desktop.cjs",
+    "test:tmux-scroll": "npm run build && node test/tmux-scroll-desktop.cjs",
+    "test:proxy": "npm run build && node test/proxy-desktop.cjs"
   },
   "keywords": [
     "terminal-emulator",

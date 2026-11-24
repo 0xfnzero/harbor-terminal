@@ -2,6 +2,7 @@ import { TabStrip } from './tab-strip.jsx';
 import { moveItem } from '../shared/order.mjs';
 import { useSortable } from './use-sortable.jsx';
 import { attachTerminalScroll } from './terminal-scroll.js';
+import { attachTerminalSelection, remoteSelection } from './terminal-selection.js';
 import { TerminalContextMenu, PasteDialog } from './terminal-overlays.jsx';
 import { LanguageSwitch } from './language.jsx';
 import { t as tr, useLanguage, initializeLanguage } from './i18n.jsx';
@@ -73,6 +74,8 @@ function TerminalPane({ tab, active, onStatus, appearance, onCleanShell }) {
   const [query, setQuery] = useState('');
   const [found, setFound] = useState(true);
   const [selected, setSelected] = useState(false);
+  const [selectingText, setSelectingText] = useState(true);
+  const selectTextRef = useRef(true);
   const [actionError, setActionError] = useState('');
   const [startup, setStartup] = useState(tab.server ? null : 'waiting');
   const searchInput = useRef(null);
@@ -85,7 +88,7 @@ function TerminalPane({ tab, active, onStatus, appearance, onCleanShell }) {
   const activeRef = useRef(active);
   useEffect(() => { activeRef.current = active; }, [active]);
   useEffect(() => {
-    const term = new Terminal({ ...terminalOptions(appearance), scrollback: 5000, allowProposedApi: false });
+    const term = new Terminal({ ...terminalOptions(appearance), scrollback: 5000, allowProposedApi: false, macOptionClickForcesSelection: true });
     const fit = new FitAddon();
     term.loadAddon(fit);
     const search = new SearchAddon();
@@ -124,7 +127,15 @@ function TerminalPane({ tab, active, onStatus, appearance, onCleanShell }) {
         if (event.state === 'error') term.write(`\r\n[Harbor] ${event.message}\r\n`);
       }
     });
-    const input = term.onData((data) => api.input(tab.id, data));
+    let remoteText = '';
+    const clearRemote = () => { remoteText = ''; setSelected(term.hasSelection()); };
+    const copyText = () => term.getSelection() || remoteText;
+    const input = term.onData((data) => {
+      // Mouse-motion reports must not discard a tmux copy candidate while the
+      // user moves the pointer toward the toolbar. New clicks/typing do clear it.
+      if (!/^\x1b\[(?:M|<\d+;\d+;\d+[Mm]|\d+;\d+;\d+M)/.test(data)) clearRemote();
+      api.input(tab.id, data);
+    });
     const resize = term.onResize(({ cols, rows }) => api.resize(tab.id, cols, rows));
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(resizeFrame);
@@ -132,6 +143,14 @@ function TerminalPane({ tab, active, onStatus, appearance, onCleanShell }) {
     });
     observer.observe(el.current);
     const allowed = () => alive && activeRef.current && !el.current?.closest('[aria-hidden=true]');
+    const detachSelection = attachTerminalSelection(term, { enabled: () => selectTextRef.current && allowed(), onStart: clearRemote });
+    const remoteCopy = term.parser.registerOscHandler(52, data => {
+      if (!allowed()) return true;
+      const text = remoteSelection(data);
+      if (text !== null) { term.clearSelection(); remoteText = text; setSelected(Boolean(text)); }
+      return true;
+    });
+    const offSecurity = api.onSecurity(state => { if (state.locked) { clearRemote(); term.clearSelection(); } });
     let pasting = false;
     let pendingCopy = Promise.resolve();
     async function paste(supplied, confirmed = false) {
@@ -151,14 +170,14 @@ function TerminalPane({ tab, active, onStatus, appearance, onCleanShell }) {
     async function action(name, supplied) {
       if (!allowed()) return;
       try {
-        if (name === 'copy' && (supplied || term.hasSelection())) {
-          const result = api.copyText(supplied || term.getSelection());
+        if (name === 'copy' && (supplied || copyText())) {
+          const result = api.copyText(supplied || copyText());
           pendingCopy = result.catch(() => {});
           await result;
         }
         if (name === 'paste') return paste();
         if (name === 'pasteConfirmed') return paste(supplied, true);
-        if (name === 'selectAll') term.selectAll();
+        if (name === 'selectAll') { clearRemote(); term.selectAll(); }
         if (name === 'clear') { term.clear(); search.clearDecorations(); }
         if (name === 'bottom') term.scrollToBottom();
         if (name === 'search') { setSearchOpen(true); return; }
@@ -170,18 +189,20 @@ function TerminalPane({ tab, active, onStatus, appearance, onCleanShell }) {
       if (allowed() && el.current?.contains(document.activeElement)) { event.preventDefault(); void action(event.detail); }
     };
     window.addEventListener('harbor-edit', menuEdit);
-    const selection = term.onSelectionChange(() => setSelected(term.hasSelection()));
+    const selection = term.onSelectionChange(() => { if (term.hasSelection()) remoteText = ''; setSelected(Boolean(copyText())); });
     const pasteEvent = event => { event.preventDefault(); event.stopImmediatePropagation(); void paste(); };
     const copyEvent = event => {
-      if (!allowed() || !term.hasSelection()) return;
+      if (!allowed() || !copyText()) return;
       event.preventDefault(); event.stopImmediatePropagation();
       void action('copy');
     };
     const contextMenu = event => {
       event.preventDefault(); event.stopPropagation();
-      if (allowed()) setContextMenu({ x: event.clientX, y: event.clientY, selected: term.getSelection() });
+      if (allowed()) setContextMenu({ x: event.clientX, y: event.clientY, selected: copyText() });
     };
     const host = el.current;
+    const beginSelection = event => { if (event.button === 0) clearRemote(); };
+    host.addEventListener('mousedown', beginSelection, true);
     host.addEventListener('paste', pasteEvent, true);
     host.addEventListener('copy', copyEvent, true);
     host.addEventListener('contextmenu', contextMenu);
@@ -198,7 +219,7 @@ function TerminalPane({ tab, active, onStatus, appearance, onCleanShell }) {
       if (alive) { finishStartup(); onStatus(tab.id, { state: 'error', message: error.message }); term.write(`\r\n${error.message}\r\n`); }
     });
     if (activeRef.current) term.focus();
-    return () => { alive = false; clearTimeout(startupTimer); cancelAnimationFrame(resizeFrame); observer.disconnect(); off(); input.dispose(); resize.dispose(); selection.dispose(); window.removeEventListener('harbor-edit', menuEdit); host.removeEventListener('paste', pasteEvent, true); host.removeEventListener('copy', copyEvent, true); host.removeEventListener('contextmenu', contextMenu); term.dispose(); api.closeSession(tab.id).catch(() => {}); };
+    return () => { alive = false; clearTimeout(startupTimer); cancelAnimationFrame(resizeFrame); observer.disconnect(); off(); offSecurity(); input.dispose(); resize.dispose(); selection.dispose(); remoteCopy.dispose(); detachSelection(); window.removeEventListener('harbor-edit', menuEdit); host.removeEventListener('mousedown', beginSelection, true); host.removeEventListener('paste', pasteEvent, true); host.removeEventListener('copy', copyEvent, true); host.removeEventListener('contextmenu', contextMenu); term.dispose(); api.closeSession(tab.id).catch(() => {}); };
   }, []);
   useEffect(() => {
     if (active && terminalRef.current) {
@@ -240,7 +261,8 @@ function TerminalPane({ tab, active, onStatus, appearance, onCleanShell }) {
     </div>}
     {tab.localMode === 'clean' && active && !startup && <div className="clean-shell-note">{tr('临时终端：未加载用户启动配置，部分开发工具可能不在 PATH 中。')}</div>}
     <div className="terminal-tools" role="toolbar" aria-label={tr('终端工具')}>
-      <button disabled={!selected} onClick={() => actionRef.current?.('copy')} title={isMac ? '⌘ C' : 'Ctrl Shift C'}>{tr('复制')}</button>
+      <button aria-pressed={selectingText} onClick={() => { selectTextRef.current = !selectingText; setSelectingText(!selectingText); terminalRef.current?.focus(); }} title={tr('开启时拖动选择文本；关闭后将拖动交给终端程序')}>{tr('选择文本')}</button>
+      <button disabled={!selected} onMouseDown={event => event.preventDefault()} onClick={() => actionRef.current?.('copy')} title={isMac ? '⌘ C' : 'Ctrl Shift C'}>{tr('复制')}</button>
       <button onClick={() => actionRef.current?.('paste')} title={isMac ? '⌘ V' : 'Ctrl Shift V'}>{tr('粘贴')}</button>
       <button onClick={() => actionRef.current?.('search')} title={isMac ? '⌘ F' : 'Ctrl Shift F'}>{tr('搜索终端')}</button>
       <button onClick={() => actionRef.current?.('bottom')}>{tr('滚动到底部')}</button>

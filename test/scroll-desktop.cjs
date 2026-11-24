@@ -7,15 +7,15 @@ const assert = require('node:assert/strict');
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'harbor-scroll-'));
   let app;
   try {
-    app = await electron.launch({ args: ['.', `--user-data-dir=${profile}`], env: { ...process.env, HARBOR_DEV: '0' } });
+    app = await electron.launch({ ...(process.env.HARBOR_EXECUTABLE ? { executablePath: process.env.HARBOR_EXECUTABLE } : {}), args: [...(process.env.HARBOR_EXECUTABLE ? [] : ['.']), `--user-data-dir=${profile}`], env: { ...process.env, HARBOR_DEV: '0' } });
     const page = await app.firstWindow();
-    await app.evaluate(({ ipcMain, BrowserWindow }) => {
+    await app.evaluate(({ app, ipcMain, BrowserWindow }) => {
       global.scrollWrites = []; global.scrollAck = 0; global.flushTimes = [];
       const web = BrowserWindow.getAllWindows()[0].webContents;
       const send = web.send.bind(web);
       web.send = (channel, ...args) => { if (channel === 'session:event' && args[0].type === 'data') global.flushTimes.push(performance.now()); return send(channel, ...args); };
       ipcMain.on('session:ack', () => { ++global.scrollAck; });
-      process.mainModule.require(process.cwd() + '/node_modules/node-pty').spawn = () => ({
+      process.mainModule.require('node:module').createRequire(app.getAppPath() + '/package.json')('node-pty').spawn = () => ({
         onData: cb => { global.scrollOutput = cb; }, onExit: cb => { global.scrollExit = cb; },
         resize() {}, pause() {}, resume() {}, write: data => global.scrollWrites.push(data), kill: () => global.scrollExit({ exitCode: 0 })
       });
@@ -58,6 +58,7 @@ const assert = require('node:assert/strict');
     await page.waitForTimeout(50);
     const mouse = await app.evaluate(() => global.scrollWrites.join(''));
     assert.ok(!mouse.includes('\x1bOB'), 'mouse-reporting applications retain their own protocol');
+    assert.match(mouse, /\x1b\[<65;\d+;\d+M/, 'tmux must receive an actual downward mouse-wheel report');
     await output('\x1b[?1000l\x1b[?1006l\x1b[?1049l');
     console.log('PASS immediate first output, local scrollback, multi-line full-screen scrolling, cursor modes and mouse-protocol isolation');
   } finally { if (app) await app.close(); await fs.rm(profile, { recursive: true, force: true }); }

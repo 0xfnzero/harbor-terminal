@@ -4,6 +4,8 @@ const pty = require('node-pty');
 const { resizeSession } = require('./pty-lifecycle.cjs');
 const { ProtectedClipboard, defaults: privacyDefaults, validate: validatePrivacy } = require('./protected-clipboard.cjs');
 const { sshFailure } = require('./ssh-failure.cjs');
+const { discoverProxies, isLoopback } = require('./proxy.cjs');
+const { directRouting, proxyOptions, authenticated, networkFailure, SshAttempt } = require('./ssh-routing.cjs');
 const { cleanShell } = require('./clean-shell.cjs');
 const { styledShell } = require('./shell-style.cjs');
 const fs = require('node:fs/promises');
@@ -65,7 +67,7 @@ function flush(s) {
   emit({ id: s.id, type: 'data', data, generation: s.generation });
 }
 
-function launch(s) {
+async function launch(s, routing = null) {
   clearTimeout(s.retryTimer);
   s.retryTimer = null;
   s.retryAt = null;
@@ -74,16 +76,30 @@ function launch(s) {
   s.sshDiagnostic = "";
   s.lastFlushAt = -Infinity;
   const generation = ++s.generation;
+  let sshAttempt;
   status(s, s.purpose ? 'installing' : s.serverBox ? 'connecting' : 'local');
   try {
-    let command = s.localMode === 'clean' ? cleanShell() : sessionCommand(s.serverBox ? vault.readSessionForReconnect(s.serverBox) : null, s.remoteName, s.purpose, runtimeFile(), s.configureNetwork, s.component);
+    const server = s.serverBox ? vault.readSessionForReconnect(s.serverBox) : null;
+    s.routeLoopback = isLoopback(server?.host);
+    let command = s.localMode === 'clean' ? cleanShell() : sessionCommand(server, s.remoteName, s.purpose, runtimeFile(), s.configureNetwork, s.component);
     if (!s.serverBox && !s.purpose && s.localMode !== 'clean' && appearance.shellStyle) command = styledShell(command, path.join(app.getPath('userData'), 'shell-style'));
     const { executable, args, env: commandEnv } = command;
+    if (!s.purpose && s.serverBox && s.transport === 'ssh') {
+      if (!routing) routing = { ...await directRouting(executable, args), proxy: null };
+      if (s.generation !== generation || s.stopped) return;
+      const timeout = Number(args.find(arg => arg.startsWith('ConnectTimeout='))?.split('=')[1] || 12) * 1000 + 1000;
+      sshAttempt = new SshAttempt({ timeout, options: routing.proxy ? proxyOptions(routing.proxy) : routing.options,
+        onTimeout: () => { if (s.generation === generation) s.pty?.kill(); } });
+      s.sshAttempt = sshAttempt;
+      args.unshift(...sshAttempt.options);
+    }
     s.pty = pty.spawn(executable, args, {
       name: 'xterm-256color', cols: s.cols, rows: s.rows,
-      cwd: os.homedir(), env: { ...process.env, ...commandEnv, PATH: [path.dirname(executable), process.env.PATH, '/usr/bin', '/bin'].filter(Boolean).join(path.delimiter), TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+      cwd: os.homedir(), env: { ...process.env, ...commandEnv, ...(sshAttempt ? { ELECTRON_RUN_AS_NODE: '1' } : {}), PATH: [path.dirname(executable), process.env.PATH, '/usr/bin', '/bin'].filter(Boolean).join(path.delimiter), TERM: 'xterm-256color', COLORTERM: 'truecolor' },
     });
   } catch (error) {
+    sshAttempt?.dispose(); s.sshAttempt = null;
+    if (s.generation !== generation) return;
     const exhausted = /PTY start failed:.*\(errno=(6|23|24|35)\)/.test(error.message);
     const message = exhausted ? tr('系统终端资源不足，请关闭不用的终端。若仍无法启动，请保存工作后完全退出并重新打开 Harbor。') + '\n' + error.message : error.message;
     status(s, 'error', { message });
@@ -94,6 +110,7 @@ function launch(s) {
   // An alive ssh process is not proof of a completed login.
   s.pty.onData((data) => {
     if (s.generation !== generation) return;
+    sshAttempt?.output(data);
     if (s.state === 'connecting') status(s, s.transport === 'mosh' ? 'mosh' : 'running');
     if (s.serverBox && s.transport === 'ssh') s.sshDiagnostic = (s.sshDiagnostic + data).slice(-8192);
     s.output += data;
@@ -106,13 +123,39 @@ function launch(s) {
     // Bound the IPC + renderer queue even while a hidden tab receives huge logs.
     if (s.pending > 262144) s.pty?.pause();
   });
-  s.pty.onExit(({ exitCode }) => {
+  s.pty.onExit(async ({ exitCode }) => {
     if (s.generation !== generation) return;
     flush(s);
     s.pty = null;
+    const diagnostic = (sshAttempt?.read() || '') + '\n' + s.sshDiagnostic;
+    const wasAuthenticated = sshAttempt?.hasAuthenticated || authenticated(diagnostic);
+    const timedOut = sshAttempt?.timedOut;
+    sshAttempt?.dispose(); s.sshAttempt = null;
+    if (timedOut) exitCode = 255;
     if (Date.now() - s.startedAt > 60000) s.attempt = 0;
-    const failure = !s.purpose && s.serverBox && s.transport === 'ssh' && exitCode === 255 ? sshFailure(s.sshDiagnostic) : null;
+    if (sshAttempt && exitCode === 255 && !s.stopped) {
+      const visible = diagnostic.split(/\r?\n/).filter(line => line && !/^debug\d:|^Authenticated to |^Transferred:|^Bytes per second:/.test(line)).join('\r\n').slice(-2048);
+      if (visible) emit({ id: s.id, type: 'data', data: `\r\n${visible}\r\n`, generation });
+    }
+    const failure = !wasAuthenticated && !s.purpose && s.serverBox && s.transport === 'ssh' && exitCode === 255 ? sshFailure(diagnostic) : null;
     if (failure) { status(s, 'error', { message: tr(failure), exitCode }); return; }
+    if (sshAttempt && exitCode === 255 && !s.stopped) {
+      // Only transport failures before login change routes. A command that has
+      // already run must never be replayed, and credentials/trust stay with SSH.
+      if (!s.routeLoopback && !wasAuthenticated && (timedOut || networkFailure(diagnostic))) {
+        status(s, 'connecting');
+        emit({ id: s.id, type: 'data', data: `\r\n[Harbor] ${tr(routing.proxy ? '代理连接失败，正在尝试其他可用路径…' : '直连失败，正在自动检测本机代理…')}\r\n`, generation });
+        const candidates = routing.remaining ?? await discoverProxies({ extra: routing.extra });
+        if (s.generation !== generation || s.stopped) return;
+        if (candidates.length) {
+          const [proxy, ...remaining] = candidates;
+          emit({ id: s.id, type: 'data', data: `\r\n[Harbor] ${tr('正在通过本机代理连接：{0}', [`${proxy.protocol}://${proxy.host}:${proxy.port}`])}\r\n`, generation });
+          void launch(s, { proxy, remaining, extra: routing.extra });
+          return;
+        }
+        emit({ id: s.id, type: 'data', data: `\r\n[Harbor] ${tr('未找到可用的本机代理路径。')}\r\n`, generation });
+      }
+    }
     if (!s.purpose && canRetry(s.serverBox ? { autoReconnect: s.autoReconnect, transport: s.transport } : null, exitCode, s.stopped)) {
       const delay = retryDelay(s.attempt++);
       s.retryAt = Date.now() + delay;
@@ -129,6 +172,7 @@ function stop(s) {
   clearTimeout(s.flushTimer);
   s.retryTimer = s.flushTimer = null;
   s.output = '';
+  s.sshAttempt?.dispose(); s.sshAttempt = null;
   s.pty?.kill();
   s.pty = null;
 }
@@ -289,7 +333,7 @@ function registerIPC() {
     s.attempt = 0;
     launch(s);
   });
-  on('session:input', (id, data) => { if (!securityBusy && !vault.state().locked && typeof data === 'string' && data.length <= 1048576) { lastActivity = Date.now(); sessions.get(id)?.pty?.write(data); } });
+  on('session:input', (id, data) => { if (!securityBusy && !vault.state().locked && typeof data === 'string' && data.length <= 1048576) { lastActivity = Date.now(); const s = sessions.get(id); s?.sshAttempt?.input(); s?.pty?.write(data); } });
   on('session:resize', (id, cols, rows) => {
     const s = sessions.get(id);
     if (s) resizeSession(s, clamp(cols, 80), clamp(rows, 24));

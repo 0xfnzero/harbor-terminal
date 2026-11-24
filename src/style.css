@@ -43,3 +43,4 @@
 .sort-ghost .edit-server,.sort-ghost .tab-close{visibility:hidden}.sorting-active,.sorting-active *{cursor:grabbing!important;user-select:none!important}
 
 .tabbar{min-width:0;overflow:hidden}.tabs{min-width:0;max-width:none;flex:0 1 auto;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none;width:0;height:0}.new-tab{flex-shrink:0}.tab-scroll{align-self:stretch;flex:0 0 28px;display:grid;place-items:center;color:#738396;background:transparent;border:0;opacity:.55;transition:color .15s,opacity .15s,background .15s}.tabbar:hover .tab-scroll:not(:disabled),.tab-scroll:focus-visible{opacity:1}.tab-scroll:hover:not(:disabled){background:#ffffff05;color:#9bbaaF}.tab-scroll:disabled{opacity:.15;cursor:default}
+.terminal-tools button[aria-pressed=true]{background:#2b4350;color:#9ae4c5}

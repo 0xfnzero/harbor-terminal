@@ -18,6 +18,10 @@ test('uses argument arrays and a stable, validated remote tmux name', () => {
   assert.equal(args[args.indexOf('-i') + 1], '/Users/me/keys/my key');
   assert.equal(args[args.indexOf('--') + 1], 'example.com');
   assert.match(args.at(-1), /exec tmux new-session -A -s 'harbor-1234-abcd'/);
+  assert.match(args.at(-1), /\\; set-option -t 'harbor-1234-abcd' mouse on/);
+  assert.ok(args.at(-1).includes("if-shell -t 'harbor-1234-abcd' -F '#{<:#{history-limit},50000}'"));
+  assert.ok(args.at(-1).includes('history-limit 50000'));
+  assert.ok(!args.at(-1).includes('set-option -g'), 'do not change global tmux settings');
   assert.match(args.at(-1), /exit 69/);
   assert.throws(() => sshArgs(s, "bad'; touch /tmp/evil"));
   assert.deepEqual(sshArgs(s, 'harbor-1234-abcd'), args);
